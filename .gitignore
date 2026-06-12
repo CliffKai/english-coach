@@ -52,6 +52,11 @@ htmlcov/
 # ── 机器学习 / NLP 资产（spaCy 模型、Whisper 权重等）──
 # 模型权重不入库，由安装脚本按需下载
 models/
+# 例外：后端源码包 app/models（领域实体），不是模型权重，必须入库
+!backend/app/models/
+!backend/app/models/**
+# 但该例外不应顺带收进编译缓存（上面 __pycache__/ 的忽略被否定规则盖掉了，这里补回）
+backend/app/models/**/__pycache__/
 *.bin
 *.pt
 *.onnx

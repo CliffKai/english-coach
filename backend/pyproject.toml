@@ -1,0 +1,41 @@
+[project]
+name = "english-coach-backend"
+version = "0.0.1"
+description = "理解式英语学习 Agent — 后端 (FastAPI)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+]
+
+# L1+ 才接入的重依赖（spaCy / faster-whisper / fsrs / anthropic / openai 等）
+# 暂不写入 L0，避免脚手架安装即拉满 ML 栈。按层逐步加入。
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",        # FastAPI TestClient 依赖
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# 刻意用 `str, Enum`（而非 py3.11 StrEnum）作可序列化枚举基类，全项目统一。
+ignore = ["UP042"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
