@@ -59,3 +59,14 @@ class PronunciationProviderKind(str, Enum):
 
     NONE = "none"
     AZURE = "azure"
+
+
+class LLMAdapterKind(str, Enum):
+    """LLM 适配器协议种类（docs/04）。决定 provider 连接走哪个适配器。
+
+    用枚举而非裸字符串：拼错/大小写不符的 kind 在配置加载期即报错，
+    不会被静默当成 OpenAI 兼容（否则 Claude 凭证可能被塞进 OpenAI 客户端）。
+    """
+
+    OPENAI_COMPAT = "openai_compat"
+    CLAUDE = "claude"

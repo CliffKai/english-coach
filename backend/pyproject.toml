@@ -8,13 +8,17 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
+    # L1 LLM 适配器：OpenAICompatAdapter（覆盖 ~80% 模型）+ ClaudeAdapter（评分）。
+    "anthropic>=0.40",
+    "openai>=1.40",
 ]
 
-# L1+ 才接入的重依赖（spaCy / faster-whisper / fsrs / anthropic / openai 等）
-# 暂不写入 L0，避免脚手架安装即拉满 ML 栈。按层逐步加入。
+# L2+ 才接入的重依赖（spaCy / faster-whisper / fsrs 等）
+# 暂不写入，避免脚手架安装即拉满 ML 栈。按层逐步加入。
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=0.23",  # async Repo/适配器测试
     "httpx>=0.27",        # FastAPI TestClient 依赖
     "ruff>=0.4",
     "mypy>=1.10",
@@ -28,6 +32,11 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["app*"]
 
+# schema.sql 是运行期数据（Database 启动时读它建表），非 Python 模块。
+# 不声明则 wheel/非 editable 安装里缺失，lifespan 启动即 FileNotFoundError。
+[tool.setuptools.package-data]
+"app.db" = ["*.sql"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -39,3 +48,4 @@ ignore = ["UP042"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"

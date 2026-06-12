@@ -1,23 +1,59 @@
 """FastAPI 入口。
 
-L0 脚手架：服务能启动 + 健康检查 + CORS。功能路由（F1/F2/F3）在 L3+ 挂载。
+L1：启动时把 LocalAdapter(SQLite) 四个 Repo + NonePronunciationAdapter（+ 已配置的
+默认 LLM）绑进容器；功能路由（F1/F2/F3）在 L3+ 挂载。
 运行：uvicorn app.main:app --reload
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.adapters import (
+    NonePronunciationAdapter,
+    SqliteErrorRepository,
+    SqliteSessionRepository,
+    SqliteSettingsRepository,
+    SqliteWordRepository,
+)
+from app.adapters.llm_factory import build_default_llm
 from app.config import get_config
+from app.container import Container, set_container
+from app.db.connection import Database
 
 config = get_config()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """绑定真实适配器（L1）。SQLite 连接随进程生命周期，关停时收尾。"""
+    db = Database(config.sqlite_path)
+    set_container(
+        Container(
+            llm=build_default_llm(config),
+            words=SqliteWordRepository(db),
+            errors=SqliteErrorRepository(db),
+            sessions=SqliteSessionRepository(db),
+            settings=SqliteSettingsRepository(db),
+            pronunciation=NonePronunciationAdapter(),
+            # stt / tts 仍未绑定（L4 接入 faster-whisper / TTS）。
+        )
+    )
+    try:
+        yield
+    finally:
+        db.close()
+
 
 app = FastAPI(
     title="English Coach Agent API",
     version=__version__,
     debug=config.debug,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

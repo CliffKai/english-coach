@@ -1,5 +1,5 @@
-"""存储 schema。L0 只提供 DDL 与 schema 加载工具；实际 LocalAdapter(SQLite)
-实现见 L1（app.adapters 之下）。
+"""存储 schema 与连接。schema.sql 是建表 DDL；Database（L1）据此初始化 SQLite，
+供 app.adapters.local 的四个 Repository 使用。
 """
 
 from pathlib import Path

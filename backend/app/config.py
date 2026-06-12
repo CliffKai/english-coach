@@ -15,11 +15,31 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.models.enums import LLMAdapterKind
 
 # backend/ 目录（本文件位于 backend/app/config.py）。
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+
+class LLMProviderConnection(BaseModel):
+    """单个 LLM provider 的连接信息（密钥来源，来自环境变量，绝不入库）。
+
+    业务里 Settings.model_config 只选 provider 名 + model；真正的 base_url/api_key
+    在这里按 provider 名查得。`kind` 决定用哪个适配器：
+    - openai_compat → OpenAICompatAdapter（DeepSeek/Qwen/Kimi/vLLM/Ollama/LM Studio…）
+    - claude        → ClaudeAdapter（Anthropic 原生协议，评分用）
+    本地模型（Ollama 等）只填 base_url，api_key 可空。
+
+    kind 为枚举：拼错或大小写不符（如 "Claude"）在配置加载期即 ValidationError，
+    不会被静默当成 OpenAI 兼容而把 Claude 凭证塞进 OpenAI 客户端。
+    """
+
+    kind: LLMAdapterKind = LLMAdapterKind.OPENAI_COMPAT
+    base_url: str | None = None
+    api_key: str | None = None
 
 
 class AppConfig(BaseSettings):
@@ -29,6 +49,7 @@ class AppConfig(BaseSettings):
         env_prefix="ENGLISH_COACH_",
         env_file=".env",
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 
@@ -42,6 +63,15 @@ class AppConfig(BaseSettings):
 
     # 存储：LocalAdapter(SQLite) 的数据库文件路径（相对 backend/ 或绝对）。
     database_url: str = "sqlite:///./data/english_coach.db"
+
+    # LLM provider 连接表：provider 名 → 连接信息。
+    # 嵌套环境变量写法（分隔符 __），如：
+    #   ENGLISH_COACH_LLM_PROVIDERS__CLAUDE__KIND=claude
+    #   ENGLISH_COACH_LLM_PROVIDERS__CLAUDE__API_KEY=sk-ant-...
+    #   ENGLISH_COACH_LLM_PROVIDERS__DEEPSEEK__BASE_URL=https://api.deepseek.com/v1
+    #   ENGLISH_COACH_LLM_PROVIDERS__DEEPSEEK__API_KEY=sk-...
+    #   ENGLISH_COACH_LLM_PROVIDERS__OLLAMA__BASE_URL=http://localhost:11434/v1
+    llm_providers: dict[str, LLMProviderConnection] = Field(default_factory=dict)
 
     @property
     def sqlite_path(self) -> Path:

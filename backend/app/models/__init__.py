@@ -14,6 +14,7 @@ from app.models.entities import (
 )
 from app.models.enums import (
     ErrorType,
+    LLMAdapterKind,
     PracticeMode,
     PronunciationProviderKind,
     ScoringStandard,
@@ -34,4 +35,5 @@ __all__ = [
     "ScoringStandard",
     "StorageBackend",
     "PronunciationProviderKind",
+    "LLMAdapterKind",
 ]
