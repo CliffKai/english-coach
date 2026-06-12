@@ -8,8 +8,8 @@
 - [x] 形态决策（Web + 语音）
 - [x] 架构设计（分层、5 Agent、适配器）
 - [x] 数据模型（VocabEntry / ErrorEntry / PracticeSession）
-- [x] 关键决策记录（ADR 001–006）
-- [ ] 实现计划（plan：目录结构、schema DDL、各 Agent prompt 草稿、MVP 切分）
+- [x] 关键决策记录（ADR 001–009）
+- [x] 实现计划（依赖顺序）—— 见 `07-implementation-order.md`
 
 ## 阶段 1：MVP（待 plan 后细化）
 

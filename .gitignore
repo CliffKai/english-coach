@@ -1,0 +1,98 @@
+# ── 密钥与本地配置（绝不入库）──────────────────────
+.env
+.env.*
+!.env.example
+*.local
+config.local.*
+secrets.*
+
+# ── 本地数据（LocalAdapter: SQLite / 文件存储）────────
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+data/
+backups/
+*.bak
+
+# ── Python / FastAPI 后端 ────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+.installed.cfg
+wheels/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# 测试 / 类型 / lint 缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+
+# ── 机器学习 / NLP 资产（spaCy 模型、Whisper 权重等）──
+# 模型权重不入库，由安装脚本按需下载
+models/
+*.bin
+*.pt
+*.onnx
+*.gguf
+.cache/
+.huggingface/
+
+# 语音临时文件（录音 / 合成音频）
+*.wav
+*.mp3
+*.webm
+*.ogg
+*.m4a
+tmp_audio/
+
+# ── 前端 React / TypeScript / Vite ──────────────────
+node_modules/
+.pnp
+.pnp.js
+frontend/dist/
+frontend/build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# 包管理器调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── 编辑器 / 操作系统 ────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Docker / 运行时 ──────────────────────────────────
+*.pid
+*.log
+.docker/

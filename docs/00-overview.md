@@ -14,6 +14,7 @@
 | `04-tech-stack.md` | 技术选型：前端、后端、各类适配器 |
 | `05-decisions.md` | 决策记录（ADR）：关键设计决策及其理由 |
 | `06-roadmap.md` | 路线图：MVP 范围、迭代计划、进度追踪 |
+| `07-implementation-order.md` | 功能实现依赖顺序：先写什么后写什么的拓扑 |
 
 ## 一句话定位
 
@@ -45,5 +46,5 @@
 - [x] 需求确认
 - [x] 架构设计
 - [x] 关键决策（ADR 001–009）
-- [ ] 实现计划（plan）
+- [x] 实现计划（plan）—— 见 `07-implementation-order.md`
 - [ ] MVP 开发
