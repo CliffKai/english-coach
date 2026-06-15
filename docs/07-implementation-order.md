@@ -84,7 +84,7 @@ L3 │ F3a 理解式背词 │  F2c 自由写作打分 → ErrorAnalysis → 错
 
 - **L3 / 打分可信度**：LLM 对作文/口语评分方差大、难校准。需要固定 rubric + 锚定样例 + 一致性测试（同篇两次分数应稳定），并明确标注「AI 估算」。无 Azure 发音评估时口语分如何取信（ADR-003 标注「基于文本估算」）。
 - **L3 / FSRS 评级映射**：F3a 是开放式「说出理解」由 LLM 判断，但 FSRS 要离散评级（again/hard/good/easy）。这个「模糊判断 → 离散评级」的映射必须先定义清楚，否则调度全错。
-- **L2-L3 / 多义词调度单位**：一个 `VocabEntry` 存多条 `context_sentences`（多义）却只有一个 `fsrs_state`。按词还是按义项调度，需在 L2 接 FSRS 前定下。
+- **L2-L3 / 多义词调度单位**：~~一个 `VocabEntry` 存多条 `context_sentences`（多义）却只有一个 `fsrs_state`。按词还是按义项调度，需在 L2 接 FSRS 前定下。~~ **已定：按词调度（per-lemma），见 ADR-010。** 同词多义共用一个 `fsrs_state`，多义来源句一起复习。
 - **L5 / 不存释义 vs Anki 导出**：ADR-004 不存释义，但 Anki 卡片要正反面 —— 卡背放什么？做导出前要想清楚（来源句？现场生成释义？）。
 - **贯穿 / Agent 评测**：五个 Agent 全 prompt 驱动，改 prompt 容易按下葫芦浮起瓢。至少给切词判断、错误检测、评分各备一组黄金样例做回归。
 

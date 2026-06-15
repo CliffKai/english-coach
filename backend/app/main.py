@@ -24,6 +24,8 @@ from app.adapters.llm_factory import build_default_llm
 from app.config import get_config
 from app.container import Container, set_container
 from app.db.connection import Database
+from app.nlp import SpacyTokenizer
+from app.scheduling import FsrsScheduler
 
 config = get_config()
 
@@ -40,6 +42,9 @@ async def lifespan(app: FastAPI):
             sessions=SqliteSessionRepository(db),
             settings=SqliteSettingsRepository(db),
             pronunciation=NonePronunciationAdapter(),
+            # L2 服务：spaCy 切词（模型懒加载，首次 tokenize 才载入）+ FSRS 调度。
+            tokenizer=SpacyTokenizer(),
+            scheduler=FsrsScheduler(),
             # stt / tts 仍未绑定（L4 接入 faster-whisper / TTS）。
         )
     )

@@ -11,10 +11,17 @@ dependencies = [
     # L1 LLM 适配器：OpenAICompatAdapter（覆盖 ~80% 模型）+ ClaudeAdapter（评分）。
     "anthropic>=0.40",
     "openai>=1.40",
+    # L2 NLP/调度：spaCy 切词+lemma、wordfreq 词频过滤、fsrs 间隔重复调度。
+    # spaCy 英文小模型 en_core_web_sm 不在 PyPI 依赖里，需另装：
+    #   python -m spacy download en_core_web_sm
+    "spacy>=3.7",
+    "wordfreq>=3.0",
+    # fsrs 6.x 专有 API：Scheduler(...) / Card(state=,step=,...) / get_card_retrievability。
+    # 5.x 缺 get_card_retrievability 且 Card 形状不同，装上会在首次调度即崩——故下限锁 6.0。
+    "fsrs>=6.0,<7",
 ]
 
-# L2+ 才接入的重依赖（spaCy / faster-whisper / fsrs 等）
-# 暂不写入，避免脚手架安装即拉满 ML 栈。按层逐步加入。
+# faster-whisper 等语音重依赖在 L4 才接入，避免脚手架安装即拉满 ML 栈。
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

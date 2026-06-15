@@ -21,11 +21,13 @@ from app.adapters import (
     TTSProvider,
     WordRepository,
 )
+from app.nlp import Tokenizer
+from app.scheduling import Scheduler
 
 
 @dataclass
 class Container:
-    """适配器实现的持有者。字段为接口类型，值在启动/测试时绑定。"""
+    """适配器/服务实现的持有者。字段为接口类型，值在启动/测试时绑定。"""
 
     llm: LLMProvider | None = None
     words: WordRepository | None = None
@@ -35,6 +37,9 @@ class Container:
     stt: STTProvider | None = None
     tts: TTSProvider | None = None
     pronunciation: PronunciationProvider | None = None
+    # L2 服务：切词/词频过滤（F1 与水平基线用）、FSRS 调度（F3 用）。
+    tokenizer: Tokenizer | None = None
+    scheduler: Scheduler | None = None
 
 
 # 进程级单例。L1 在 app 启动钩子里填充；测试直接替换字段或整个对象。

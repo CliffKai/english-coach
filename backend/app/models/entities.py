@@ -35,16 +35,23 @@ def _now() -> datetime:
 class FsrsState(BaseModel):
     """FSRS 间隔重复状态（docs/03 VocabEntry.fsrs_state）。
 
-    L0 只定义形状；真正的调度逻辑在 L2 接入 FSRS 库时实现。
-    多义词调度单位（按词 vs 按义项）是 L2 必须先定的红线（见 07 已知风险），
-    L0 先按「一个 VocabEntry 一个 fsrs_state」建模。
+    字段直接镜像 `fsrs.Card` 的可序列化字段，保证与调度库无损往返
+    （见 app.scheduling.fsrs_scheduler）。**按词调度（per-lemma）**：一个 VocabEntry
+    一个 fsrs_state，同词多义共用同一调度节奏（ADR-010）。
+
+    难度/稳定性在「从未复习」时为 None（fsrs 对新卡的语义），不是 0。
     """
 
-    difficulty: float = 0.0
-    stability: float = 0.0
+    # fsrs State：1=Learning 2=Review 3=Relearning。
+    state: int = 1
+    # 学习/再学习阶梯（learning_steps）的位置；进入 Review 稳定态后为 None。
+    step: int | None = 0
+    stability: float | None = None
+    difficulty: float | None = None
     due: datetime | None = None
-    review_count: int = 0
     last_review: datetime | None = None
+    # 本项目自有计数（非 fsrs 字段）：累计复习次数，供「今日学习」首页/画像展示。
+    review_count: int = 0
 
 
 class UserUnderstanding(BaseModel):
