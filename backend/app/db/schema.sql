@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS vocab_entries (
     lemma              TEXT NOT NULL,
     context_sentences  TEXT NOT NULL DEFAULT '[]',   -- JSON: string[]
     status             TEXT NOT NULL DEFAULT 'new',   -- new | learning | known
-    fsrs_state         TEXT NOT NULL DEFAULT '{}',    -- JSON: {difficulty,stability,due,review_count,last_review}
+    fsrs_state         TEXT NOT NULL DEFAULT '{}',    -- JSON: {difficulty,stability,due,review_count,consecutive_good,last_review}
     user_understanding TEXT NOT NULL DEFAULT '[]',    -- JSON: {text,created_at}[]
     source_text_id     TEXT,
     created_at         TEXT NOT NULL

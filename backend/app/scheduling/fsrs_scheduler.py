@@ -98,7 +98,7 @@ class FsrsScheduler(Scheduler):
         """未复习过（含 legacy 0.0 零值）→ 无留存率/无需库计算。"""
         return state.last_review is None or not state.stability
 
-    def _from_card(self, card, *, review_count: int) -> FsrsState:
+    def _from_card(self, card, *, review_count: int, consecutive_good: int) -> FsrsState:
         return FsrsState(
             state=int(card.state),
             step=card.step,
@@ -107,6 +107,7 @@ class FsrsScheduler(Scheduler):
             due=card.due,
             last_review=card.last_review,
             review_count=review_count,
+            consecutive_good=consecutive_good,
         )
 
     def review(
@@ -118,7 +119,14 @@ class FsrsScheduler(Scheduler):
         new_card, _log = self._lib.review_card(
             card, Rating(int(rating)), review_datetime=_now(now)
         )
-        return self._from_card(new_card, review_count=state.review_count + 1)
+        # 连续答好计数：GOOD/EASY 累加，AGAIN/HARD 清零（供 F3a「连续 N 次才毕业」判断）。
+        good = rating in (ReviewRating.GOOD, ReviewRating.EASY)
+        consecutive_good = state.consecutive_good + 1 if good else 0
+        return self._from_card(
+            new_card,
+            review_count=state.review_count + 1,
+            consecutive_good=consecutive_good,
+        )
 
     def is_due(self, state: FsrsState, *, now: datetime | None = None) -> bool:
         if state.due is None:

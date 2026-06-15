@@ -52,6 +52,9 @@ class FsrsState(BaseModel):
     last_review: datetime | None = None
     # 本项目自有计数（非 fsrs 字段）：累计复习次数，供「今日学习」首页/画像展示。
     review_count: int = 0
+    # 本项目自有计数（非 fsrs 字段）：连续答好（GOOD/EASY）次数，答差（AGAIN/HARD）清零。
+    # 「毕业 known」用它判断「连续」而非「累计」表现，避免 again,again,good 误毕业（F3a 状态流转）。
+    consecutive_good: int = 0
 
 
 class UserUnderstanding(BaseModel):

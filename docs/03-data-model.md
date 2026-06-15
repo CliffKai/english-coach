@@ -22,7 +22,7 @@ User
 | `lemma` | 词元（词形还原后） |
 | `context_sentences[]` | **来源句列表**（核心！同词不同义存多条） |
 | `status` | new / learning / known |
-| `fsrs_state` | FSRS 状态：难度、稳定性、到期日、复习次数 |
+| `fsrs_state` | FSRS 状态：难度、稳定性、到期日、累计复习次数、连续答好次数（毕业判断用，ADR-011） |
 | `user_understanding` | 用户复习时说出的理解（历史记录，非标准答案） |
 | `source_text_id` | 来源文本引用 |
 | `created_at` | 收集时间 |

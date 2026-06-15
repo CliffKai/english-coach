@@ -21,14 +21,16 @@ def test_app_boots_and_health_ok():
     assert resp.json()["status"] == "ok"
 
 
-def test_meta_reports_features_off_at_l0():
+def test_meta_reports_feature_flags():
     client = TestClient(app)
     data = client.get("/api/meta").json()
-    # L0 三大功能尚未实现。
-    assert data["features"] == {
-        "vocab_collection": False,
-        "topic_practice": False,
-        "comprehension_review": False,
+    # L3 起 F1 / F3a 已接，F2（话题练习）待 L3(2c)/L4。
+    # （具体取值随层级推进，权威断言见 test_l3_routes::test_meta_reports_l3_features_on。）
+    assert data["features"]["topic_practice"] is False
+    assert set(data["features"]) == {
+        "vocab_collection",
+        "topic_practice",
+        "comprehension_review",
     }
 
 
