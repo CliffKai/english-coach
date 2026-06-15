@@ -8,6 +8,11 @@ Planned code structure follows the docs: Python FastAPI backend, React + TypeScr
 
 ## Build, Test, and Development Commands
 
+Use the project-specific Miniforge Python environment for all backend Python commands:
+
+- `conda run -n english-coach ...` runs commands in the `english-coach` environment.
+- From `backend/`, run tests with `conda run -n english-coach pytest`.
+
 There is no build, lint, or test tooling yet. Until L0 scaffolding exists, use documentation checks:
 
 - `rg --files` lists the current repository files.
