@@ -79,7 +79,7 @@ def test_meta_reports_l3_features_on(client_correct: TestClient):
     feats = client_correct.get("/api/meta").json()["features"]
     assert feats["vocab_collection"] is True
     assert feats["comprehension_review"] is True
-    assert feats["topic_practice"] is False  # F2 待接
+    assert feats["topic_practice"] is True  # F2c 已接（2a/2b/2d 待 L4）
 
 
 def test_baseline_prompt_and_assess_persists(client_correct: TestClient):

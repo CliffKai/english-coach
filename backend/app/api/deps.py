@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from app.adapters.repository import SettingsRepository, WordRepository
+from app.adapters.repository import (
+    ErrorRepository,
+    SessionRepository,
+    SettingsRepository,
+    WordRepository,
+)
 from app.agents.base import LLMNotConfiguredError, TaskKind, resolve_task_llm
 from app.config import get_config
 from app.container import Container, get_container
@@ -32,6 +37,18 @@ def require_settings_repo(c: Container) -> SettingsRepository:
     if c.settings is None:
         raise HTTPException(status_code=503, detail="配置存储未就绪")
     return c.settings
+
+
+def require_sessions(c: Container) -> SessionRepository:
+    if c.sessions is None:
+        raise HTTPException(status_code=503, detail="练习会话存储未就绪")
+    return c.sessions
+
+
+def require_errors(c: Container) -> ErrorRepository:
+    if c.errors is None:
+        raise HTTPException(status_code=503, detail="错题本存储未就绪")
+    return c.errors
 
 
 def require_tokenizer(c: Container) -> Tokenizer:
