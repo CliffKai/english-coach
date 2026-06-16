@@ -26,8 +26,11 @@ from app.adapters.llm_factory import build_default_llm
 from app.adapters.speech_factory import build_default_stt, build_default_tts
 from app.api import (
     baseline_router,
+    data_router,
     practice_router,
     review_router,
+    settings_router,
+    today_router,
     vocab_router,
     voice_router,
 )
@@ -84,11 +87,15 @@ app.add_middleware(
 
 # L3 核心闭环路由：baseline → vocab(F1) → review(F3a/F3b) → practice(F2c/F2d/F2a/2b + 错题本)。
 # L4 语音：voice（F2d 语音对话 WebSocket）。
+# L5 习惯/落地：today（今日学习聚合）/ data（导入导出）/ settings（配置向导支撑）。
 app.include_router(baseline_router)
 app.include_router(vocab_router)
 app.include_router(review_router)
 app.include_router(practice_router)
 app.include_router(voice_router)
+app.include_router(today_router)
+app.include_router(data_router)
+app.include_router(settings_router)
 
 
 @app.get("/api/health")
@@ -100,14 +107,32 @@ async def health() -> dict:
 @app.get("/api/meta")
 async def meta() -> dict:
     """暴露关键运行时元信息（不含密钥），便于前端/向导探测。"""
+    from app.agents.base import LLMNotConfiguredError
+    from app.api import deps
     from app.container import get_container
 
     c = get_container()
     # 语音可用 = STT 与 TTS 都已绑定（ADR-012：默认走 API，未配则 None）。
     voice_enabled = c.stt is not None and c.tts is not None
+
+    # 配置向导状态（L5）：判断首次运行是否需要走向导。
+    # - has_llm_provider：scoring 任务**真的能解析出一个模型**——不是「.env 里有 provider」就算数。
+    #   只配了 OpenAI 兼容 provider（如 DeepSeek/Ollama）却没在 Settings.model_config 里给任务
+    #   分配它时，build_default_llm 只对 Claude 回非 None，scoring 仍 409；故必须走真实解析路径
+    #   （resolve_task_llm）判断，否则向导会误报「已配好」而核心功能全部 409。scoring 是代表性
+    #   任务（最强档，且水平基线测试本身就用它）。
+    # - has_baseline：水平基线已测（F1 过滤/F2 打分都参照它，07 红线）。
+    # needs_wizard：缺可用模型或缺基线即建议走向导；前端据此首屏弹向导。
+    settings = await deps.load_settings(c)
+    try:
+        deps.resolve_llm_or_raise(c, "scoring", settings=settings)
+        has_llm_provider = True
+    except LLMNotConfiguredError:
+        has_llm_provider = False
+    has_baseline = settings.level_baseline is not None
     return {
         "version": __version__,
-        "storage_backend": "local",  # L1 起从 Settings 读
+        "storage_backend": settings.storage_backend.value,
         "voice_enabled": voice_enabled,
         # 语音子能力细分（前端按需禁用录音/播放）。
         "voice": {"stt": c.stt is not None, "tts": c.tts is not None},
@@ -116,5 +141,11 @@ async def meta() -> dict:
             "vocab_collection": True,  # F1，L3 已接（切词+逐词问询+入库）
             "topic_practice": True,  # F2，L3 接 2c；L4 接 2a/2b（引导）+ 2d（对话打分）
             "comprehension_review": True,  # F3，L3 接 3a；L4 接 3b（语境造句背）
+        },
+        # 配置向导状态（L5）。
+        "setup": {
+            "has_llm_provider": has_llm_provider,
+            "has_baseline": has_baseline,
+            "needs_wizard": not (has_llm_provider and has_baseline),
         },
     }

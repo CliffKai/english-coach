@@ -244,6 +244,13 @@ class SqliteErrorRepository(ErrorRepository):
         )
         return entry
 
+    async def delete(self, entry_id: str, *, user_id: str = DEFAULT_USER_ID) -> None:
+        await self._db.run(
+            lambda c: c.execute(
+                "DELETE FROM error_entries WHERE id = ? AND user_id = ?", (entry_id, user_id)
+            )
+        )
+
 
 # ── PracticeSession ─────────────────────────────────────────────────
 def _session_to_row(s: PracticeSession) -> dict:
@@ -322,6 +329,14 @@ class SqliteSessionRepository(SessionRepository):
             )
         )
         return session
+
+    async def delete(self, session_id: str, *, user_id: str = DEFAULT_USER_ID) -> None:
+        await self._db.run(
+            lambda c: c.execute(
+                "DELETE FROM practice_sessions WHERE id = ? AND user_id = ?",
+                (session_id, user_id),
+            )
+        )
 
 
 # ── Settings（单行 per user）────────────────────────────────────────

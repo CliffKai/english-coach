@@ -15,6 +15,68 @@ export interface MetaResponse {
     topic_practice: boolean
     comprehension_review: boolean
   }
+  setup: {
+    has_llm_provider: boolean
+    has_baseline: boolean
+    needs_wizard: boolean
+  }
+}
+
+// ── L5「今日学习」聚合首页 ───────────────────────────────────
+export interface DueWordPreview {
+  entry_id: string
+  word: string
+  lemma: string
+}
+export interface ErrorPreview {
+  id: string
+  type: string
+  original: string
+  correction: string
+}
+export interface TodayResponse {
+  due_count: number
+  due_preview: DueWordPreview[]
+  unresolved_error_count: number
+  error_preview: ErrorPreview[]
+  recommended_topic: { topic: string; reason: string }
+}
+
+// ── L5 配置向导 / 设置 ───────────────────────────────────────
+export interface ModelAssignment {
+  provider: string
+  model: string
+}
+export interface Settings {
+  user_id: string
+  storage_backend: string
+  scoring_standard: string
+  target_band: number | null
+  native_lang: string
+  level_baseline: string | null
+  voice_enabled: boolean
+  model_config: {
+    scoring: ModelAssignment | null
+    reasoning: ModelAssignment | null
+    tokenize: ModelAssignment | null
+    conversation: ModelAssignment | null
+  }
+  pronunciation_provider: string
+}
+export interface ProvidersResponse {
+  llm: string[]
+  stt: string[]
+  tts: string[]
+}
+export interface TestLLMResponse {
+  ok: boolean
+  detail: string
+}
+export interface BaselineResult {
+  baseline: string
+  estimated_band: number | null
+  rationale: string
+  estimated: boolean
 }
 
 // ── F1 生词收集 ─────────────────────────────────────────────
@@ -121,9 +183,9 @@ async function getJson<T>(path: string): Promise<T> {
   return resp.json() as Promise<T>
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, method = 'POST'): Promise<T> {
   const resp = await fetch(path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -183,4 +245,32 @@ export const api = {
   ) => postJson<DialogueTurnResponse>('/api/practice/dialogue/turn', { message, history, topic }),
 
   errors: () => getJson<ErrorEntry[]>('/api/errors'),
+
+  // L5 今日学习聚合首页
+  today: () => getJson<TodayResponse>('/api/today'),
+
+  // L5 配置向导 / 设置
+  getSettings: () => getJson<Settings>('/api/settings'),
+  putSettings: (s: Settings) => postJson<Settings>('/api/settings', s, 'PUT'),
+  providers: () => getJson<ProvidersResponse>('/api/providers'),
+  testLlm: (provider: string, model: string) =>
+    postJson<TestLLMResponse>('/api/settings/test-llm', { provider, model }),
+
+  // 水平基线（向导复用 L3 接口）
+  baselinePrompt: () => getJson<{ prompt: string }>('/api/baseline/prompt'),
+  baselineAssess: (sample: string, prompt?: string) =>
+    postJson<BaselineResult>('/api/baseline/assess', { sample, prompt }),
+
+  // L5 导入/导出
+  exportJsonUrl: '/api/export/json',
+  exportAnkiUrl: '/api/export/anki',
+  importJson: (bundle: unknown, replace: boolean) =>
+    postJson<{
+      vocab_imported: number
+      vocab_merged: number
+      errors_imported: number
+      sessions_imported: number
+      settings_imported: boolean
+      skipped: number
+    }>('/api/import/json', { bundle, replace }),
 }

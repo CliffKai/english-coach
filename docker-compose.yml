@@ -1,0 +1,53 @@
+# English Coach Agent —— 一键启动（ADR-009 开源落地基线）。
+#
+#   docker compose up --build            # 启动后端 + 前端
+#   docker compose --profile ollama up   # 额外起本地 Ollama（纯本地模型，无需云端 key）
+#
+# 启动后：前端 http://localhost:5173 ，后端经前端 nginx 反代（/api、/ws）。
+#
+# 安全默认（单用户本地优先，ADR-007）：前端端口**只绑 127.0.0.1**——本应用无账号/无鉴权，
+# 却暴露全量导入导出 + 会花用户密钥的模型调用端点；绑到 0.0.0.0 会让同网段任意主机读写你的
+# 数据、消耗你的 key。确需局域网/远程访问时，自行把下方 FRONTEND_BIND 设为 0.0.0.0 并自加鉴权。
+# 模型连接信息走环境变量（密钥绝不入库，ADR-006）：在 backend/.env 配置 LLM/语音 provider，
+# 见 backend/.env.example。用 Ollama profile 时，backend 内访问地址为 http://ollama:11434/v1。
+
+services:
+  backend:
+    build: ./backend
+    # .env 提供 LLM/STT/TTS provider 连接信息（密钥来源）。文件不存在时 compose 会警告，
+    # 复制 backend/.env.example 为 backend/.env 即可。
+    env_file:
+      - ./backend/.env
+    # 容器内监听 0.0.0.0:8000（见 Dockerfile CMD）。
+    expose:
+      - "8000"
+    # SQLite 数据持久化到命名卷，重建容器不丢生词/错题/会话。
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    # nginx 反代 /api、/ws 到 backend:8000，故前端依赖后端先就绪。
+    depends_on:
+      - backend
+    # 默认只绑本机回环（FRONTEND_BIND 缺省 127.0.0.1）。确需对外暴露再设 FRONTEND_BIND=0.0.0.0
+    # （并自加鉴权/反代）。backend 不直接发布端口，仅经本服务 nginx 访问，进一步缩小暴露面。
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:5173:80"
+    restart: unless-stopped
+
+  # 可选：纯本地模型。`docker compose --profile ollama up` 才启动。
+  # 启用后在 backend/.env 里把某 provider 指向 http://ollama:11434/v1（kind=openai_compat，无需 key）。
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    expose:
+      - "11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+  ollama-data:

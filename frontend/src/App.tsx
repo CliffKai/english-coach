@@ -1,27 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, type MetaResponse } from './api'
 import PracticePanel from './panels/PracticePanel'
 import ReviewPanel from './panels/ReviewPanel'
+import SettingsPanel from './panels/SettingsPanel'
+import TodayPanel from './panels/TodayPanel'
 import VocabPanel from './panels/VocabPanel'
 
-// 三大功能 + 后端连通状态。L3/L4 已接入：F1 生词、F2 话题练习（含语音对话）、F3 背词。
+// L5 起：「今日」聚合首页串起平行三大功能 + 配置向导/设置。
+// 三大功能：F1 生词、F2 话题练习（含语音对话）、F3 背词。
 
 type Conn = 'checking' | 'ok' | 'down'
-type Tab = 'vocab' | 'practice' | 'review'
+type Tab = 'today' | 'vocab' | 'practice' | 'review' | 'settings'
 
 const TABS: { key: Tab; title: string; desc: string }[] = [
+  { key: 'today', title: '今日', desc: '把待复习生词、待巩固错题、推荐话题串成今天的学习清单' },
   { key: 'vocab', title: '生词收集', desc: '粘贴英文 → 切词 → 逐词问询 → 不认识者入库' },
   { key: 'practice', title: '话题练习', desc: '引导写/说（即时纠错）· 自由写作/语音对话（打分）' },
   { key: 'review', title: '理解式背单词', desc: '来源句复述 + 语境造句翻译，FSRS 调度' },
+  { key: 'settings', title: '设置', desc: '配置模型、水平基线测试、数据导入导出' },
 ]
 
 export default function App() {
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
-  const [tab, setTab] = useState<Tab>('vocab')
+  const [tab, setTab] = useState<Tab>('today')
 
-  useEffect(() => {
-    api
+  const refreshMeta = useCallback(() => {
+    return api
       .meta()
       .then((m) => {
         setMeta(m)
@@ -29,6 +34,10 @@ export default function App() {
       })
       .catch(() => setConn('down'))
   }, [])
+
+  useEffect(() => {
+    refreshMeta()
+  }, [refreshMeta])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -68,12 +77,37 @@ export default function App() {
           </p>
         ) : (
           <>
+            {meta?.setup.needs_wizard && tab !== 'settings' && (
+              <WizardBanner meta={meta} onGoto={() => setTab('settings')} />
+            )}
+            {tab === 'today' && <TodayPanel onGoto={setTab} />}
             {tab === 'vocab' && <VocabPanel />}
             {tab === 'practice' && <PracticePanel />}
             {tab === 'review' && <ReviewPanel />}
+            {tab === 'settings' && <SettingsPanel onSaved={refreshMeta} />}
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+function WizardBanner({ meta, onGoto }: { meta: MetaResponse; onGoto: () => void }) {
+  // 首次引导提示：缺模型或缺基线时督促去「设置」走完配置向导（07 / ADR-009）。
+  const needs: string[] = []
+  if (!meta.setup.has_llm_provider) needs.push('配置模型 provider')
+  if (!meta.setup.has_baseline) needs.push('测一次水平基线')
+  return (
+    <div className="mb-5 flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+      <p className="text-sm text-amber-800">
+        首次使用还需：{needs.join(' · ')}。完成后各功能才能正常工作。
+      </p>
+      <button
+        onClick={onGoto}
+        className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500"
+      >
+        去配置
+      </button>
     </div>
   )
 }

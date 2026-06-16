@@ -72,6 +72,10 @@ class ErrorRepository(ABC):
     @abstractmethod
     async def update(self, entry: ErrorEntry) -> ErrorEntry: ...
 
+    @abstractmethod
+    async def delete(self, entry_id: str, *, user_id: str = DEFAULT_USER_ID) -> None:
+        """删除一条错题（覆盖式导入恢复用，L5）。"""
+
 
 class SessionRepository(ABC):
     """练习会话存取（功能2）。"""
@@ -89,6 +93,10 @@ class SessionRepository(ABC):
 
     @abstractmethod
     async def update(self, session: PracticeSession) -> PracticeSession: ...
+
+    @abstractmethod
+    async def delete(self, session_id: str, *, user_id: str = DEFAULT_USER_ID) -> None:
+        """删除一条会话（覆盖式导入恢复用，L5）。"""
 
 
 class SettingsRepository(ABC):
