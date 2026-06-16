@@ -1,35 +1,24 @@
 import { useEffect, useState } from 'react'
 import { api, type MetaResponse } from './api'
+import PracticePanel from './panels/PracticePanel'
+import ReviewPanel from './panels/ReviewPanel'
+import VocabPanel from './panels/VocabPanel'
 
-// L0 脚手架首页：四大功能区占位 + 后端连通状态。
-// 各功能区随实现层级（L3/L4）逐步替换为真实页面。
+// 三大功能 + 后端连通状态。L3/L4 已接入：F1 生词、F2 话题练习（含语音对话）、F3 背词。
 
 type Conn = 'checking' | 'ok' | 'down'
+type Tab = 'vocab' | 'practice' | 'review'
 
-const FEATURES = [
-  {
-    key: 'vocab_collection' as const,
-    title: '生词收集',
-    desc: '粘贴英文 → 切词 → 逐词问询 → 不认识者连同来源句入库',
-    layer: 'L3',
-  },
-  {
-    key: 'topic_practice' as const,
-    title: '话题练习',
-    desc: '四模式：引导写/说（即时纠错）· 自由写作/对话（延迟纠错 + 打分）',
-    layer: 'L3 / L4',
-  },
-  {
-    key: 'comprehension_review' as const,
-    title: '理解式背单词',
-    desc: '来源句复述理解 + 语境造句翻译，FSRS 调度',
-    layer: 'L3 / L4',
-  },
+const TABS: { key: Tab; title: string; desc: string }[] = [
+  { key: 'vocab', title: '生词收集', desc: '粘贴英文 → 切词 → 逐词问询 → 不认识者入库' },
+  { key: 'practice', title: '话题练习', desc: '引导写/说（即时纠错）· 自由写作/语音对话（打分）' },
+  { key: 'review', title: '理解式背单词', desc: '来源句复述 + 语境造句翻译，FSRS 调度' },
 ]
 
 export default function App() {
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
+  const [tab, setTab] = useState<Tab>('vocab')
 
   useEffect(() => {
     api
@@ -49,25 +38,41 @@ export default function App() {
             <h1 className="text-xl font-semibold">English Coach</h1>
             <p className="text-sm text-slate-500">理解式英语学习 Agent</p>
           </div>
-          <ConnBadge conn={conn} version={meta?.version} />
+          <div className="flex items-center gap-3">
+            <VoiceBadge meta={meta} />
+            <ConnBadge conn={conn} version={meta?.version} />
+          </div>
         </div>
+        <nav className="mx-auto flex max-w-4xl gap-1 px-6">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
+                tab === t.key
+                  ? 'border-slate-900 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {t.title}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        <p className="mb-6 text-sm text-slate-600">
-          脚手架阶段（L0）。三大功能区占位中，按 <code className="rounded bg-slate-200 px-1">docs/07</code> 依赖顺序逐层接入。
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {FEATURES.map((f) => (
-            <FeatureCard
-              key={f.key}
-              title={f.title}
-              desc={f.desc}
-              layer={f.layer}
-              ready={meta?.features[f.key] ?? false}
-            />
-          ))}
-        </div>
+      <main className="mx-auto max-w-4xl px-6 py-8">
+        <p className="mb-5 text-sm text-slate-600">{TABS.find((t) => t.key === tab)!.desc}</p>
+        {conn === 'down' ? (
+          <p className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            后端未连接。请先启动后端：<code className="rounded bg-rose-100 px-1">uvicorn app.main:app --reload</code>
+          </p>
+        ) : (
+          <>
+            {tab === 'vocab' && <VocabPanel />}
+            {tab === 'practice' && <PracticePanel />}
+            {tab === 'review' && <ReviewPanel />}
+          </>
+        )}
       </main>
     </div>
   )
@@ -87,30 +92,17 @@ function ConnBadge({ conn, version }: { conn: Conn; version?: string }) {
   )
 }
 
-function FeatureCard({
-  title,
-  desc,
-  layer,
-  ready,
-}: {
-  title: string
-  desc: string
-  layer: string
-  ready: boolean
-}) {
+function VoiceBadge({ meta }: { meta: MetaResponse | null }) {
+  if (!meta) return null
+  const on = meta.voice_enabled
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-medium">{title}</h2>
-        <span
-          className={`rounded px-2 py-0.5 text-xs ${
-            ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-          }`}
-        >
-          {ready ? '可用' : `即将到来 · ${layer}`}
-        </span>
-      </div>
-      <p className="text-sm text-slate-500">{desc}</p>
-    </div>
+    <span
+      className={`rounded-full px-3 py-1 text-xs ${
+        on ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+      }`}
+      title={on ? 'STT + TTS 已配置' : '语音未配置（配置 STT/TTS provider 后启用对话）'}
+    >
+      {on ? '🎙 语音已启用' : '🎙 语音未配置'}
+    </span>
   )
 }

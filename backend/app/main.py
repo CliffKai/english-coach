@@ -23,11 +23,13 @@ from app.adapters import (
     SqliteWordRepository,
 )
 from app.adapters.llm_factory import build_default_llm
+from app.adapters.speech_factory import build_default_stt, build_default_tts
 from app.api import (
     baseline_router,
     practice_router,
     review_router,
     vocab_router,
+    voice_router,
 )
 from app.config import get_config
 from app.container import Container, set_container
@@ -53,7 +55,10 @@ async def lifespan(app: FastAPI):
             # L2 服务：spaCy 切词（模型懒加载，首次 tokenize 才载入）+ FSRS 调度。
             tokenizer=SpacyTokenizer(),
             scheduler=FsrsScheduler(),
-            # stt / tts 仍未绑定（L4 接入 faster-whisper / TTS）。
+            # L4 语音（ADR-012）：默认走 OpenAI 兼容协议，按配置挑默认 provider；
+            # 未配置语音 provider 则为 None（用到时回 503，提示去配语音）。
+            stt=build_default_stt(config),
+            tts=build_default_tts(config),
         )
     )
     try:
@@ -77,11 +82,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# L3 核心闭环路由：baseline → vocab(F1) → review(F3a) → practice(F2c + 错题本)。
+# L3 核心闭环路由：baseline → vocab(F1) → review(F3a/F3b) → practice(F2c/F2d/F2a/2b + 错题本)。
+# L4 语音：voice（F2d 语音对话 WebSocket）。
 app.include_router(baseline_router)
 app.include_router(vocab_router)
 app.include_router(review_router)
 app.include_router(practice_router)
+app.include_router(voice_router)
 
 
 @app.get("/api/health")
@@ -93,14 +100,21 @@ async def health() -> dict:
 @app.get("/api/meta")
 async def meta() -> dict:
     """暴露关键运行时元信息（不含密钥），便于前端/向导探测。"""
+    from app.container import get_container
+
+    c = get_container()
+    # 语音可用 = STT 与 TTS 都已绑定（ADR-012：默认走 API，未配则 None）。
+    voice_enabled = c.stt is not None and c.tts is not None
     return {
         "version": __version__,
         "storage_backend": "local",  # L1 起从 Settings 读
-        "voice_enabled": False,
+        "voice_enabled": voice_enabled,
+        # 语音子能力细分（前端按需禁用录音/播放）。
+        "voice": {"stt": c.stt is not None, "tts": c.tts is not None},
         "features": {
             # 随层级推进置 true。
             "vocab_collection": True,  # F1，L3 已接（切词+逐词问询+入库）
-            "topic_practice": True,  # F2c，L3 已接（自由写作延迟纠错+多维度打分）；2a/2b/2d L4
-            "comprehension_review": True,  # F3a，L3 已接（来源句复述判断+FSRS 推进）
+            "topic_practice": True,  # F2，L3 接 2c；L4 接 2a/2b（引导）+ 2d（对话打分）
+            "comprehension_review": True,  # F3，L3 接 3a；L4 接 3b（语境造句背）
         },
     }

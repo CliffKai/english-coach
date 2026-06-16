@@ -46,23 +46,28 @@ WordRepository / ErrorRepository / SessionRepository 接口
 ### STTProvider —— 语音转文字
 ```
 STTProvider 接口
-  ├── WhisperLocalAdapter  (faster-whisper，本地)
-  └── WhisperApiAdapter / 其他云端 STT
+  ├── OpenAICompatSTTAdapter  (默认；OpenAI 音频协议 /v1/audio/transcriptions，
+  │                            填 base_url+api_key+model，云端如 OpenAI/Groq 或本地服务皆可)
+  └── FasterWhisperSTTAdapter (可选；纯本地离线，faster-whisper)
 ```
+> 与 LLM 同一洞察：OpenAI 的 `/v1/audio/transcriptions` 已是事实标准，做好一个兼容适配器、
+> 填不同 `base_url` 即覆盖云/自部署。默认走 API，离线优先者用本地适配器。详见 ADR-012。
 
 ### TTSProvider —— 文字转语音
 ```
 TTSProvider 接口
-  ├── LocalAdapter   (本地 TTS)
-  └── CloudAdapter   (云端 TTS)
+  ├── OpenAICompatTTSAdapter  (默认；OpenAI 音频协议 /v1/audio/speech，base_url+api_key+model)
+  └── LocalTTSAdapter         (可选；本地 TTS)
 ```
+> 同 STT：协议优先、云/本地自配（ADR-012）。语音连接信息只来自环境变量、绝不入库，
+> 复用 AppConfig 嵌套配置（stt_providers / tts_providers，镜像 llm_providers）。
 
 ### PronunciationProvider —— 发音评估（可选，默认关闭）
 ```
 PronunciationProvider 接口（默认 NoneAdapter）
-  ├── NoneAdapter   → 第一版默认。口语打分时发音/流利度维度
-  │                   标注"基于文本估算，仅供参考"
-  └── AzureAdapter  → 用户填 key 启用，音素级真实评分
+  ├── NoneAdapter   → 第一版默认。口语打分时发音/流利度两维
+  │                   不给分（空缺）并标注"未接入发音评估"（ADR-013），不假评
+  └── AzureAdapter  → 用户配置发音评估 API 即启用，音素级真实评分
 ```
 > **决策**：不自研发音评估（声学难题，投入产出差）。留适配器接口，
 > 默认 NoneAdapter，需要精准发音分时接 Azure Pronunciation Assessment / 讯飞 等。详见 ADR-003。

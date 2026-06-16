@@ -18,6 +18,10 @@ L1 实现：
 - OpenAICompatAdapter / ClaudeAdapter        app.adapters.{openai_compat,claude}
 - Sqlite{Word,Error,Session,Settings}Repository  app.adapters.local
 - NonePronunciationAdapter                   app.adapters.pronunciation
+
+L4 实现（语音，ADR-012）：
+- OpenAICompatSTTAdapter / FasterWhisperSTTAdapter   app.adapters.stt_*
+- OpenAICompatTTSAdapter / PiperTTSAdapter           app.adapters.tts_*
 """
 
 from app.adapters.claude import ClaudeAdapter
@@ -43,6 +47,10 @@ from app.adapters.speech import (
     Transcript,
     TTSProvider,
 )
+from app.adapters.stt_faster_whisper import FasterWhisperSTTAdapter
+from app.adapters.stt_openai_compat import OpenAICompatSTTAdapter
+from app.adapters.tts_openai_compat import OpenAICompatTTSAdapter
+from app.adapters.tts_piper import PiperTTSAdapter
 
 __all__ = [
     # 接口
@@ -67,4 +75,8 @@ __all__ = [
     "SqliteSessionRepository",
     "SqliteSettingsRepository",
     "NonePronunciationAdapter",
+    "OpenAICompatSTTAdapter",
+    "FasterWhisperSTTAdapter",
+    "OpenAICompatTTSAdapter",
+    "PiperTTSAdapter",
 ]

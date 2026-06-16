@@ -60,9 +60,10 @@ L3 │ F3a 理解式背词 │  F2c 自由写作打分 → ErrorAnalysis → 错
 - ✅ 验证：粘贴文本能攒出生词并背诵；写一段文章能拿到分数 + 错题。
 
 ### L4 — 语音（依赖 L1 接口 + L3 的练习逻辑）
-- 先接 `STTProvider`（faster-whisper）+ `TTSProvider`。
+- 先接 `STTProvider` + `TTSProvider`：默认 **OpenAI 兼容协议适配器**（`/v1/audio/transcriptions`、`/v1/audio/speech`，云/本地自配），各附一个**纯本地可选适配器**（faster-whisper / 本地 TTS）。语音连接信息镜像 `llm_providers` 走环境变量（ADR-012）。
 - 然后依赖语音的功能：**F2d 对话打分**（语音对话 + 延迟纠错，复用 ExaminerAgent）、**F2a/2b 引导写/说**（练习模式即时纠错，TutorAgent）、**F3b 语境造句背**。
 - ⚠️ F2d 强依赖 STT/TTS，故整组放语音之后；F2a/b 的写作分支理论上可早做，但归并到此层统一处理纠错 UI。
+- ⚠️ 口语发音/流利度两维：默认 `NoneAdapter` 时**空缺并标注「未接入发音评估」**（不假评，ADR-013）；用户配了发音评估 API 才给真分。其余维度（内容/词汇/语法/连贯）由 STT 转写正常评分。
 - ✅ 验证：能录音转写、合成播放，跑通一次口语对话打分。
 
 ### L5 — 日常闭环 / 开源落地（依赖前面所有功能存在）

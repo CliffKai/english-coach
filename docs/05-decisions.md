@@ -87,3 +87,31 @@
   - 三档（对/沾边/错）粒度足够区分调度强度，又不逼 LLM 做它不擅长的细分；`too_easy` 交给用户自评（FSRS 的 Easy 本就该由「主观觉得太简单」触发）。
   - 判分只看「是否抓住该语境的意思」，不苛求措辞——契合 ADR-004「理解式、不比对标准释义」。
 - **关联**：ADR-004（只存来源句不存释义）、ADR-010（按词调度）；评级枚举见 `app.scheduling.ReviewRating`。
+
+## ADR-012：语音（STT/TTS）也走 OpenAI 兼容协议为默认 + 本地适配器可选，用户自配
+
+- **决策**：`STTProvider` / `TTSProvider` 沿用 LLM 的「一个 OpenAI 兼容适配器打天下」思路：
+  - **STT 默认 `OpenAICompatSTTAdapter`**：打 OpenAI 音频协议 `/v1/audio/transcriptions`，填 `base_url + api_key + model` 即可，云端（OpenAI / Groq…）或本地服务（faster-whisper-server、`openedai-whisper` 等暴露同协议者）皆可。
+  - **TTS 默认 `OpenAICompatTTSAdapter`**：打 `/v1/audio/speech`，同上。
+  - 各保留一个**纯本地可选适配器**：`FasterWhisperSTTAdapter`（faster-whisper，离线）与一个本地 TTS 适配器，给「完全离线/隐私优先」用户。**默认走 API，本地为可选**（B3）。
+- **背景**：`docs/04` 原写死 STT=`WhisperLocalAdapter(faster-whisper)`、TTS=`本地 TTS`。L4 接入前改为与 LLM 适配器一致的「协议优先、云/本地自配」形态。
+- **理由**：
+  - OpenAI 的 `/v1/audio/transcriptions`（STT）与 `/v1/audio/speech`（TTS）已是事实标准，大量云/自部署服务照它实现——做好一个兼容适配器，填不同 `base_url` 即覆盖绝大多数，复刻 `OpenAICompatAdapter`（LLM）已验证的核心洞察。
+  - 不把第一版绑死在 faster-whisper 的重依赖上（ctranslate2 等），让「想用云就填 key、想离线就指本地服务」二者皆可，降低开源用户上手门槛。
+  - 语音连接信息（`base_url/api_key/model/kind`）与 LLM 一样**只来自环境变量、绝不入库**，复用 `AppConfig` 的嵌套配置形态（新增 `stt_providers` / `tts_providers`，镜像 `llm_providers`）。
+- **重依赖处理**：faster-whisper 等放 `[voice]` 可选依赖组，适配器内**懒加载**（沿用 `SpacyTokenizer`/`FsrsScheduler` 的 import-inside 风格），模块导入仍轻、测试全程离线 mock，不污染环境也不阻塞构建。
+- **代价**：纯本地默认体验需用户自行起一个本地语音服务或装 `[voice]`；可接受——与「本地优先但不牺牲易用」的整体取向一致，ADR-002 的可换适配器保证随时切换。
+- **关联**：ADR-001（第一版含语音）、ADR-002（一切外部依赖皆适配器）、ADR-003（发音评估独立适配器，默认 None）、ADR-006（按任务分配模型，语音同理按 provider 名查连接）。
+
+## ADR-013：口语流利度/发音——接发音评估 API 才有真分，否则两维空缺并标注
+
+- **决策**：口语打分（F2b/F2d）的**发音(pronunciation)与流利度(fluency)** 两维，由 `PronunciationProvider` 决定：
+  - 默认 `NoneAdapter`（ADR-003）：这两维**不给分数**（分值留空 / `null`），结果标 `estimated=True`，前端明示「未接入发音评估，无此项评分」。**不**用文本/转写去假装能评发音。
+  - 用户**配置了发音评估 API（如 Azure Pronunciation Assessment）→ 自动得到音素级真实评分**，`estimated=False`。
+  - 其余维度（内容/词汇/语法/连贯）始终由 STT 转写文字正常评分，不受发音 API 有无影响。
+- **背景**：把用户语音经 STT 转成文字再打分，会丢失声学信息——发音准不准、是否地道，文字看不出。设计上不掩盖这一局限，而是诚实地「有 API 才评、没有就空着」。
+- **理由**：
+  - 发音是声学问题，文字零信息；与其糊弄一个不可信的发音分，不如空缺并标注，避免误导用户（延续 ADR-003「标注估算/仅供参考」的诚实原则，并更进一步：发音维度宁可空缺也不假评）。
+  - 真发音评分不自研、接成熟 API（ADR-003），用户「配了就生效」是最小心智负担。
+- **与 ADR-003 的关系**：ADR-003 定「发音评估留适配器、默认 None、标注估算」；本 ADR 明确**默认 None 时发音/流利度两维取『空缺 + 标注』而非『文本估算一个数』**，并定下「配 API 即真分」的开关语义。STT 转写的**时间戳**（`Transcript.segments`）仍可作流利度的辅助信号记入复盘（ADR-005「停顿是流利度信号」），但不据此编造流利度分数。
+- **关联**：ADR-003、ADR-005、ADR-012；落地见 `PronunciationProvider` 与 `ExaminerAgent` 口语打分分支。

@@ -21,8 +21,17 @@ dependencies = [
     "fsrs>=6.0,<7",
 ]
 
-# faster-whisper 等语音重依赖在 L4 才接入，避免脚手架安装即拉满 ML 栈。
+# 语音（L4，ADR-012）。默认 STT/TTS 走 OpenAI 兼容协议，仅需已在主依赖的 openai SDK，
+# 故云端/本地服务模式无需装本组。本组是**纯本地离线**适配器的重依赖：
+#   - faster-whisper（本地 STT，拉 ctranslate2）
+#   - piper-tts（本地 TTS，需另下载语音模型 .onnx）
+# 适配器内懒加载（沿用 SpacyTokenizer/FsrsScheduler 风格），未装本组不影响其余功能与测试。
+#   pip install -e ".[voice]"
 [project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.0",
+    "piper-tts>=1.2",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",  # async Repo/适配器测试
@@ -56,3 +65,9 @@ ignore = ["UP042"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+# 可选语音依赖（[voice]：faster-whisper / piper）无类型 stub，且默认不安装（适配器内懒导入）。
+# 未装时 mypy 会报 import-not-found；这里忽略其缺失 stub，不影响主流程类型检查。
+[[tool.mypy.overrides]]
+module = ["faster_whisper", "faster_whisper.*", "piper", "piper.*"]
+ignore_missing_imports = true

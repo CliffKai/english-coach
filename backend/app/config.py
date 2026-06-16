@@ -18,7 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.models.enums import LLMAdapterKind
+from app.models.enums import LLMAdapterKind, STTAdapterKind, TTSAdapterKind
 
 # backend/ 目录（本文件位于 backend/app/config.py）。
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -40,6 +40,38 @@ class LLMProviderConnection(BaseModel):
     kind: LLMAdapterKind = LLMAdapterKind.OPENAI_COMPAT
     base_url: str | None = None
     api_key: str | None = None
+
+
+class STTProviderConnection(BaseModel):
+    """单个 STT provider 的连接信息（ADR-012，密钥来自环境变量，绝不入库）。
+
+    kind 决定适配器：
+    - openai_compat → OpenAICompatSTTAdapter（/v1/audio/transcriptions；云端 OpenAI/Groq
+      或本地服务如 faster-whisper-server。本地无鉴权时 api_key 可空）。
+    - faster_whisper → FasterWhisperSTTAdapter（纯本地离线，base_url/api_key 无意义；
+      model 即 whisper 模型尺寸如 "base"/"small"，device/compute 走默认）。
+    """
+
+    kind: STTAdapterKind = STTAdapterKind.OPENAI_COMPAT
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+
+
+class TTSProviderConnection(BaseModel):
+    """单个 TTS provider 的连接信息（ADR-012）。
+
+    kind 决定适配器：
+    - openai_compat → OpenAICompatTTSAdapter（/v1/audio/speech）。
+    - piper → PiperTTSAdapter（纯本地离线；model 为 piper 语音模型 .onnx 路径）。
+    voice 为默认音色（OpenAI 兼容如 "alloy"；可被调用方覆盖）。
+    """
+
+    kind: TTSAdapterKind = TTSAdapterKind.OPENAI_COMPAT
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+    voice: str | None = None
 
 
 class AppConfig(BaseSettings):
@@ -72,6 +104,17 @@ class AppConfig(BaseSettings):
     #   ENGLISH_COACH_LLM_PROVIDERS__DEEPSEEK__API_KEY=sk-...
     #   ENGLISH_COACH_LLM_PROVIDERS__OLLAMA__BASE_URL=http://localhost:11434/v1
     llm_providers: dict[str, LLMProviderConnection] = Field(default_factory=dict)
+
+    # 语音 provider 连接表（ADR-012），镜像 llm_providers 的嵌套环境变量写法：
+    #   ENGLISH_COACH_STT_PROVIDERS__OPENAI__BASE_URL=https://api.openai.com/v1
+    #   ENGLISH_COACH_STT_PROVIDERS__OPENAI__API_KEY=sk-...
+    #   ENGLISH_COACH_STT_PROVIDERS__OPENAI__MODEL=whisper-1
+    #   ENGLISH_COACH_TTS_PROVIDERS__OPENAI__MODEL=tts-1
+    stt_providers: dict[str, STTProviderConnection] = Field(default_factory=dict)
+    tts_providers: dict[str, TTSProviderConnection] = Field(default_factory=dict)
+    # 默认绑进容器的语音 provider 名（缺省取各表里的唯一项 / 第一项；见 build_default_*）。
+    default_stt_provider: str | None = None
+    default_tts_provider: str | None = None
 
     @property
     def sqlite_path(self) -> Path:

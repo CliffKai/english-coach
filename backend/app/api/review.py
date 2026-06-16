@@ -1,7 +1,12 @@
-"""F3a 理解式背词路由（L3 第 3 步，消费 F1 生词 + L2 FSRS 队列）。
+"""理解式背词路由（消费 F1 生词 + L2 FSRS 队列）。
 
-GET  /api/review/next     取下一张到期复习卡（词 + 来源句，不含任何释义，ADR-004）
-POST /api/review/submit   提交「用自己的话说的理解」→ LLM 判断 → 映射 FSRS 评级 → 推进调度
+F3a 逐词理解背（L3）：
+  GET  /api/review/next     取下一张到期复习卡（词 + 来源句，不含任何释义，ADR-004）
+  POST /api/review/submit   提交「用自己的话说的理解」→ LLM 判断 → 映射 FSRS 评级 → 推进调度
+
+F3b 语境造句背（L4）：
+  POST /api/review/passage  用一批到期生词造一段短文供翻译（不含释义，ADR-004）
+  POST /api/review/passage/check  提交翻译 → 逐词检验理解 → 各自映射 FSRS 评级 → 推进调度
 
 判断用 reasoning 档模型。模糊判断→离散评级的映射见 ADR-011（在 MemoryWordAgent）。
 推进后写回 fsrs_state、追加 user_understanding 历史、按状态流转 status。
@@ -103,6 +108,127 @@ async def submit(req: SubmitRequest, c: ContainerDep) -> SubmitResponse:
         status=entry.status,
         next_due=entry.fsrs_state.due.isoformat() if entry.fsrs_state.due else None,
     )
+
+
+# ── F3b 语境造句背 ──────────────────────────────────────────────
+class PassageRequest(BaseModel):
+    """造短文：默认取到期队列里的一批生词；可指定 entry_ids 精确选词。"""
+
+    entry_ids: list[str] | None = None  # 指定生词条目；None 则取到期队列
+    limit: int = 5  # 取到期队列时的词数（默认 5，造文不宜过多）
+    topic: str | None = None  # 话题联动（贴近功能2 话题，docs/01 跨功能能力5）
+
+
+class PassageWord(BaseModel):
+    """短文涉及的一个目标词（entry_id 供后续检验对齐回库）。"""
+
+    entry_id: str
+    word: str
+    lemma: str
+
+
+class PassageResponse(BaseModel):
+    """造出的短文 + 目标词（不含任何释义，ADR-004：理解由翻译时重建）。"""
+
+    text: str
+    words: list[PassageWord]  # 短文实际用到的目标词
+
+
+class PassageCheckRequest(BaseModel):
+    """提交翻译检验。entries 为造文时返回的 (entry_id, lemma) 对，回传以对齐推进。"""
+
+    passage: str
+    lemmas: list[str]  # 造文返回的 words_used（lemma）
+    translation: str
+
+
+class WordCheckResult(BaseModel):
+    verdict: str
+    rating: ReviewRating
+    feedback: str
+    lemma: str
+    status: VocabStatus
+    next_due: str | None
+
+
+class PassageCheckResponse(BaseModel):
+    checks: list[WordCheckResult]
+
+
+@router.post("/passage")
+async def make_passage(req: PassageRequest, c: ContainerDep) -> PassageResponse:
+    """用一批到期生词造短文供翻译（F3b）。不含释义（ADR-004）。"""
+    words = deps.require_words(c)
+    settings = await deps.load_settings(c)
+
+    # 选词：指定 entry_ids 则按 id 取；否则取到期队列前 limit 个。
+    if req.entry_ids:
+        picked: list[VocabEntry] = []
+        for eid in req.entry_ids:
+            e = await words.get(eid)
+            if e is not None:
+                picked.append(e)
+    else:
+        picked = await words.list_due(limit=req.limit)
+    if not picked:
+        return PassageResponse(text="", words=[])
+
+    # lemma → 条目映射（造文按 lemma 选词，检验时按 lemma 对齐回条目）。
+    by_lemma = {e.lemma: e for e in picked}
+    llm = deps.require_task_llm(c, "reasoning", settings=settings)
+    passage = await MemoryWordAgent(llm).make_passage(
+        list(by_lemma), topic=req.topic, baseline=settings.level_baseline
+    )
+    used = [
+        PassageWord(entry_id=by_lemma[lm].id, word=by_lemma[lm].word, lemma=lm)
+        for lm in passage.words_used
+        if lm in by_lemma
+    ]
+    return PassageResponse(text=passage.text, words=used)
+
+
+@router.post("/passage/check")
+async def check_passage(req: PassageCheckRequest, c: ContainerDep) -> PassageCheckResponse:
+    """提交翻译 → 逐词检验语境理解 → 各自映射 FSRS 评级 → 推进调度（F3b）。"""
+    words = deps.require_words(c)
+    scheduler = deps.require_scheduler(c)
+    settings = await deps.load_settings(c)
+
+    llm = deps.require_task_llm(c, "reasoning", settings=settings)
+    checks = await MemoryWordAgent(llm).check_translation(
+        passage=req.passage, words=req.lemmas, translation=req.translation
+    )
+
+    results: list[WordCheckResult] = []
+    for chk in checks:
+        entry = await words.get_by_lemma(chk.word, user_id=settings.user_id)
+        if entry is None:
+            # 词不在库（已删/lemma 对不上）→ 仍回结果但不推进调度。
+            results.append(
+                WordCheckResult(
+                    verdict=chk.verdict,
+                    rating=chk.rating,
+                    feedback=chk.feedback,
+                    lemma=chk.word,
+                    status=VocabStatus.NEW,
+                    next_due=None,
+                )
+            )
+            continue
+        entry.fsrs_state = scheduler.review(entry.fsrs_state, chk.rating)
+        entry.status = _advance_status(entry, chk.rating)
+        await words.update(entry)
+        results.append(
+            WordCheckResult(
+                verdict=chk.verdict,
+                rating=chk.rating,
+                feedback=chk.feedback,
+                lemma=chk.word,
+                status=entry.status,
+                next_due=entry.fsrs_state.due.isoformat() if entry.fsrs_state.due else None,
+            )
+        )
+    return PassageCheckResponse(checks=results)
 
 
 GRADUATION_STREAK = 3  # 连续答好达此次数才「毕业」为 known

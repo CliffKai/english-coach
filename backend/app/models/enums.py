@@ -70,3 +70,25 @@ class LLMAdapterKind(str, Enum):
 
     OPENAI_COMPAT = "openai_compat"
     CLAUDE = "claude"
+
+
+class STTAdapterKind(str, Enum):
+    """语音转文字适配器种类（ADR-012）。默认走 OpenAI 兼容音频协议。
+
+    - openai_compat → OpenAICompatSTTAdapter（/v1/audio/transcriptions，云/本地服务皆可）
+    - faster_whisper → FasterWhisperSTTAdapter（纯本地离线，可选）
+    """
+
+    OPENAI_COMPAT = "openai_compat"
+    FASTER_WHISPER = "faster_whisper"
+
+
+class TTSAdapterKind(str, Enum):
+    """文字转语音适配器种类（ADR-012）。默认走 OpenAI 兼容音频协议。
+
+    - openai_compat → OpenAICompatTTSAdapter（/v1/audio/speech，云/本地服务皆可）
+    - piper → PiperTTSAdapter（纯本地离线，可选）
+    """
+
+    OPENAI_COMPAT = "openai_compat"
+    PIPER = "piper"

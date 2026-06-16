@@ -137,13 +137,39 @@ def test_score_rejects_practice_mode(client: TestClient):
     assert resp.status_code == 400
 
 
-def test_score_rejects_dialogue_until_l4(client: TestClient):
-    """对话打分（2d）强依赖 STT/TTS，属 L4：L3 拒绝，避免用写作 rubric 给口语打分。"""
+def test_score_accepts_dialogue_with_speaking_dims(client: TestClient):
+    """L4：对话打分（2d）解禁，用口语维度集；无发音评估时发音/流利度维度空缺并标注（ADR-013）。"""
     resp = client.post(
         "/api/practice/score",
-        json={"text": "hello there", "mode": "dialogue"},
+        json={"text": "I think technology make life better.", "mode": "dialogue"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200
+    body = resp.json()
+    by_key = {d["key"]: d for d in body["dimensions"]}
+    # 雅思口语四维。
+    assert set(by_key) == {
+        "fluency_coherence",
+        "lexical_resource",
+        "grammatical_range_accuracy",
+        "pronunciation",
+    }
+    # 发音/流利度无评估 → 空缺（score=None）且标 estimated。
+    assert by_key["pronunciation"]["score"] is None
+    assert by_key["pronunciation"]["estimated"] is True
+    assert by_key["fluency_coherence"]["score"] is None
+    # 文本可评维度仍有分；overall 只对有分维度求均值（不被空缺拖低）。
+    assert by_key["lexical_resource"]["score"] is not None
+    assert body["overall"] is not None
+
+
+def test_dialogue_turn_replies_without_correcting(client: TestClient):
+    """F2d 对话单轮：只回自然对话（驱动 TTS），不纠错/不打分（ADR-005 零脚手架）。"""
+    resp = client.post(
+        "/api/practice/dialogue/turn",
+        json={"message": "Hello, I want to talk about travel.", "topic": "travel"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["reply"]  # 非空回话
 
 
 def test_first_time_errors_not_counted_as_history():

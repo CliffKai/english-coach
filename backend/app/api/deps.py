@@ -14,6 +14,7 @@ from app.adapters.repository import (
     SettingsRepository,
     WordRepository,
 )
+from app.adapters.speech import PronunciationProvider, STTProvider, TTSProvider
 from app.agents.base import LLMNotConfiguredError, TaskKind, resolve_task_llm
 from app.config import get_config
 from app.container import Container, get_container
@@ -63,6 +64,26 @@ def require_scheduler(c: Container) -> Scheduler:
     return c.scheduler
 
 
+def require_stt(c: Container) -> STTProvider:
+    if c.stt is None:
+        raise HTTPException(status_code=503, detail="语音转写未配置（请配置 STT provider）")
+    return c.stt
+
+
+def require_tts(c: Container) -> TTSProvider:
+    if c.tts is None:
+        raise HTTPException(status_code=503, detail="语音合成未配置（请配置 TTS provider）")
+    return c.tts
+
+
+def require_pronunciation(c: Container) -> PronunciationProvider:
+    """发音评估。默认 NonePronunciationAdapter 总会绑定（ADR-003/013）；
+    None 仅在测试未注入时出现，回 503。"""
+    if c.pronunciation is None:
+        raise HTTPException(status_code=503, detail="发音评估未就绪")
+    return c.pronunciation
+
+
 async def load_settings(c: Container, *, user_id: str = DEFAULT_USER_ID) -> Settings:
     """读用户配置；无配置（未初始化）→ 返回默认 Settings，不报错。"""
     if c.settings is None:
@@ -79,3 +100,13 @@ def require_task_llm(c: Container, task: TaskKind, *, settings: Settings):
         )
     except LLMNotConfiguredError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def resolve_llm_or_raise(c: Container, task: TaskKind, *, settings: Settings):
+    """同 require_task_llm 但抛 LLMNotConfiguredError 而非 HTTPException。
+
+    WebSocket 路径用：WS 无 HTTP 状态码，由调用方捕获后以错误帧告知客户端。
+    """
+    return resolve_task_llm(
+        task, settings=settings, config=get_config(), default_llm=c.llm
+    )

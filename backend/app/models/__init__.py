@@ -18,7 +18,9 @@ from app.models.enums import (
     PracticeMode,
     PronunciationProviderKind,
     ScoringStandard,
+    STTAdapterKind,
     StorageBackend,
+    TTSAdapterKind,
     VocabStatus,
 )
 
@@ -36,4 +38,6 @@ __all__ = [
     "StorageBackend",
     "PronunciationProviderKind",
     "LLMAdapterKind",
+    "STTAdapterKind",
+    "TTSAdapterKind",
 ]

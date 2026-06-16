@@ -32,6 +32,11 @@ class STTProvider(ABC):
 class TTSProvider(ABC):
     """文字转语音（docs/04，L4）。"""
 
+    # 合成音频的 MIME 类型（供前端按正确解码器播放：mp3→audio/mpeg、wav→audio/wav…）。
+    # 默认 mp3；产出其他格式的适配器（如本地 Piper 出 WAV）须覆盖，否则浏览器会用错
+    # 解码器导致播放失败。
+    content_type: str = "audio/mpeg"
+
     @abstractmethod
     async def synthesize(self, text: str, *, voice: str | None = None) -> bytes:
         """合成整段音频，返回字节（如 wav/mp3）。"""
