@@ -110,6 +110,25 @@ class Tokenizer(ABC):
           下界 `min_zipf` 滤掉语料外的噪音（拼写错误、罕见专名等，默认 0=不滤下界）。
         """
 
+    def locate_in_text(self, word: str, text: str) -> Token | None:
+        """在 text 中定位 word（按表面形式或 lemma 匹配），返回首个命中的 Token。
+
+        用户补录生词时（ADR-015「从本文补词」）：词就在原文里，来源句天然存在，
+        故对原文切词、匹配该词、取它所在句——纯确定性，无 LLM。
+        匹配优先精确表面形式，再退到 lemma（用户填 "running" 也能命中 lemma "run"）。
+        基于 `tokenize` 实现，对所有 Tokenizer 子类通用，未命中返回 None。
+        """
+        needle = word.strip().lower()
+        if not needle:
+            return None
+        fallback: Token | None = None
+        for tok in self.tokenize(text):
+            if tok.text.lower() == needle:
+                return tok
+            if fallback is None and tok.lemma == needle:
+                fallback = tok
+        return fallback
+
 
 # spaCy pipeline 加载开销大，按模型名缓存单例（进程内复用）。
 @lru_cache(maxsize=2)

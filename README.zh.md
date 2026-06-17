@@ -2,130 +2,97 @@
 
 # English Coach Agent
 
-一个**理解式**英语学习 Agent（面向中文母语者）：不死记硬背，而是在语境中理解。
-三大功能汇成一条数据闭环 —— 生词收集、话题练习（练习模式即时纠错 / 考试模式延迟纠错 + 雅思托福打分）、理解式背单词（FSRS 调度）。
+一个**理解式**英语学习应用，面向中文母语者 —— 重点是在语境中理解单词，而不是死记硬背。
 
-> 设计是源头。所有实现以 `docs/` 为准；改行为先改文档（见 `docs/00-overview.md`）。
-> 文档导航见 `docs/00-overview.md`，构建顺序见 `docs/07-implementation-order.md`。
+它完全运行在你自己的电脑上，可以接入任意 AI 模型（云端或纯本地），所有数据都留在本地。无需注册，没有账号。
 
-## 当前进度
+## 它能做什么
 
-**MVP 全层（L0–L5）已就绪。** 核心闭环 + 语音 + 日常习惯层（「今日学习」首页、数据导入导出、配置向导、一键启动）均已实现。
-进度细节见 `docs/06-roadmap.md`。
+三大功能彼此联动：
 
-| 层 | 内容 |
-|---|---|
-| L0 | 脚手架：适配器接口 + 配置加载 + DB schema + 前后端空壳 |
-| L1 | LocalAdapter(SQLite) 四 Repo + LLM 适配器（OpenAI 兼容 / Claude） |
-| L2 | spaCy 切词/lemma/词频过滤 + FSRS 调度器 |
-| L3 | 核心闭环：水平基线 → F1 生词收集 → F3a 背词 → F2c 打分 → ErrorAnalysis 错题本 |
-| L4 | 语音：STT/TTS 适配器 + F2d 语音对话 + F2a/2b 引导 + F3b 语境造句背 |
-| L5 | 日常闭环：今日学习首页 · 导入/导出(JSON + Anki CSV) · 配置向导 · docker-compose 一键启动 |
+1. **生词收集** —— 粘贴任意英文。应用会切分单词，跳过你已经会的（按你的水平判断），然后逐词问你：*认识 / 跳过 / 不认识*。不认识的词会**连同它出现的原句一起**保存下来，这样以后你能想起当初为什么不认识它。不存任何词典释义 —— 词义靠你从句子里重新领会。
+   - **漏掉了某个词？** 如果应用把一个你其实不认识的词当作"太简单"过滤掉了，你可以自己补进去 —— 它会自动从你的文本里取出那句话。你也可以脱离文本凭空加一个词（自己写例句，或让 AI 帮你造一句）。
+2. **话题练习** —— 选一个话题和一种模式：
+   - *练习模式*（引导式写作 / 口语）：边写边即时纠错、给提示。
+   - *考试模式*（自由写作 / 对话）：做的时候不打扰你，错误被静默记录；等你完成（或提前交卷）后，一次性给出雅思 / 托福式的分数和完整错误报告。
+3. **理解式背单词** —— 不是甩给你一条释义，而是展示原句，让你**用自己的话**把这个词解释出来；或把你要复习的词编进一小段短文让你翻译。复习时机由应用自动安排（间隔重复），让你在快要忘记前恰好重温。
 
-## 仓库结构
+你收集的每个生词、犯下的每个错误，都汇入同一份学习画像，反过来为三大功能做个性化。
 
-```
-backend/     FastAPI 后端（Python 3.11，conda 环境 english-coach）
-  app/
-    models/      领域实体（VocabEntry / ErrorEntry / PracticeSession / Settings）
-    adapters/    适配器（LLM / 存储 Repo / STT / TTS / 发音评估）—— 接口 + 实现
-    agents/      五个 Agent（Tokenizer / Tutor / Examiner / MemoryWord / ErrorAnalysis）+ Leveling
-    nlp/         spaCy 切词/lemma/词频过滤
-    scheduling/  FSRS 间隔重复调度
-    api/         HTTP/WS 路由（baseline/vocab/review/practice/voice/today/data/settings）
-    db/          schema.sql（四表 DDL）
-    config.py    进程级配置（.env → AppConfig）；密钥只在这，绝不入库
-    container.py 依赖注入容器（接口可 mock 注入）
-    main.py      FastAPI 入口（/api/health, /api/meta, 路由挂载）
-  tests/       L0–L5 验证测试（TestClient + mock 容器 + 内存 SQLite，全程离线）
-  Dockerfile
-frontend/    React + TS + Tailwind（Vite）
-  src/panels/  Today / Vocab / Practice / Review / Settings 面板
-  Dockerfile, nginx.conf
-docs/        设计与决策（源头）
-docker-compose.yml
-```
-
-## 一键启动（Docker，推荐给开源用户）
+## 快速开始（Docker，推荐）
 
 ```bash
-cp backend/.env.example backend/.env      # ⚠️ 必填：至少一个 LLM provider 的连接信息
-docker compose up --build                 # 起后端 + 前端
-# → 前端 http://localhost:5173 （/api、/ws 经前端 nginx 反代到后端）
+cp backend/.env.example backend/.env      # 然后填入至少一个 AI 模型（见下）
+docker compose up --build
+# → 打开 http://localhost:5173
 ```
 
-> **必须先配模型**：`backend/.env` 里不配任何 LLM provider 也能起服务，但所有 AI 功能（打分、背词判断、对话、水平基线）都会返回 409 提示去配模型。最省事是配一个 OpenAI 兼容 provider（DeepSeek/Qwen/Kimi/本地 Ollama 等），见 `backend/.env.example` 的示例。
+> **必须先配一个 AI 模型。** 不配也能启动，但所有 AI 功能（打分、背词、对话、水平测试）都会提示你去配模型。最省事的是配一个 OpenAI 兼容的 provider —— DeepSeek、Qwen、Kimi、本地 Ollama 等都行。示例见 `backend/.env.example`。
 >
-> **默认只绑本机**：前端端口默认绑 `127.0.0.1:5173`（本应用无账号鉴权，却暴露导入导出与会花 key 的端点）。确需局域网/远程访问，启动时设 `FRONTEND_BIND=0.0.0.0` 并自行加鉴权。
+> **默认只在本机访问。** 本应用没有登录，且暴露了导入导出和会消耗你 API key 的接口，所以只绑定 `127.0.0.1`。如果你确实需要从别的设备访问，启动时设 `FRONTEND_BIND=0.0.0.0`，并自行在前面加一层身份验证。
 
-想用**纯本地模型**（无需云端 key）：
+### 纯本地，无需云端 key
 
 ```bash
 docker compose --profile ollama up --build
-# 在 backend/.env 里把某 provider 指向 http://ollama:11434/v1（kind=openai_compat，api_key 留空）
-# 进容器拉个模型：docker compose exec ollama ollama pull qwen2.5
+# 在 backend/.env 里把某个 provider 指向 http://ollama:11434/v1（kind=openai_compat，api_key 留空）
+# 拉一个模型：docker compose exec ollama ollama pull qwen2.5
 ```
 
-数据（生词/错题/会话）持久化在命名卷 `backend-data`，重建容器不丢。
+你的数据（生词、错题、会话）保存在 `backend-data` 卷里，重建容器也不会丢。
 
-## 本地开发起步
+## 不用 Docker 运行
 
-### 后端
+<details>
+<summary>后端 + 前端启动步骤</summary>
 
-环境用 miniforge/conda（项目固定环境名 `english-coach`，Python 3.11）：
+**后端**（Python 3.11，用 conda）：
 
 ```bash
-conda create -n english-coach python=3.11   # 首次
+conda create -n english-coach python=3.11
 cd backend
-conda run -n english-coach python -m pip install -e ".[dev]"
-conda run -n english-coach python -m spacy download en_core_web_sm   # F1 切词/水平基线用
-cp .env.example .env                          # 按需填写 provider 连接信息
+conda run -n english-coach python -m pip install -e .
+conda run -n english-coach python -m spacy download en_core_web_sm
+cp .env.example .env                         # 填入你的模型连接信息
 conda run -n english-coach uvicorn app.main:app --reload
-# → http://127.0.0.1:8000/api/health
+# → http://127.0.0.1:8000
 ```
 
-可选：纯本地语音（faster-whisper / piper），默认走 OpenAI 兼容协议无需装本组：
+如需纯本地语音（离线语音转写 / 合成），再装可选的语音组件 —— 如果你用云端或 OpenAI 兼容的音频服务则无需：
 
 ```bash
 conda run -n english-coach python -m pip install -e ".[voice]"
 ```
 
-测试 / 质量检查（全程离线，无需真实模型）：
-
-```bash
-cd backend
-conda run -n english-coach python -m pytest -q
-conda run -n english-coach ruff check .
-conda run -n english-coach mypy app
-```
-
-### 前端
+**前端**：
 
 ```bash
 cd frontend
 npm install
-npm run dev      # → http://localhost:5173（/api、/ws 代理到后端 8000）
+npm run dev      # → http://localhost:5173
 ```
+
+</details>
 
 ## 首次使用：配置向导
 
-新用户在前端「设置」页走完配置向导（首页顶部会有提示横幅督促）：
+首页的横幅会引导你到**设置**页：
 
-1. **配模型**：在 `backend/.env` 按 `ENGLISH_COACH_LLM_PROVIDERS__<名字>__...` 填入 provider 连接信息（base_url/api_key/kind），重启后端。密钥只在 `.env`，绝不入库（ADR-006）。
-2. **按任务分配模型**：「设置」里给评分/引导/对话/切词各选一个 provider + 模型名，可点「测连通」验证。provider 或 model 任一留空 = 该任务回落到后端默认模型（仅当 `.env` 配了 Claude provider 时才有默认；只配 OpenAI 兼容 provider 时**必须**在此显式分配，否则任务 409）。
-3. **测水平基线**：写一小段英文，AI 估算你的 CEFR 等级（标注「AI 估算」，可重测）。基线影响生词过滤与打分（07 红线）。
+1. **配模型** —— 在 `backend/.env` 里填入 provider 的连接信息（base URL / API key），然后重启后端。你的 key 只留在 `.env`，绝不写进数据库。
+2. **为每个任务分配模型** —— 在设置里为打分、推理、对话、切词各选一个 provider + 模型，点**测连通**确认可用。
+3. **做水平测试** —— 写一小段英文，AI 会估算你的水平（标注为"估算"，可重测）。你的水平决定哪些词算"太简单不必问"，并校准你的分数。
 
-配好后回「今日」首页，它会把待复习生词、待巩固错题、推荐话题串成今天的学习清单。
+然后去**今日**页 —— 它会把待复习的生词、值得重温的错题、一个推荐话题，汇成今天的学习清单。
 
-## 数据导入 / 导出（「设置」页）
+## 语音（可选）
 
-- **JSON 全量备份**：导出含全字段（生词/错题/会话/配置）的备份，可原样**导回本应用**（换机器/迁移用）。导入支持「合并」（默认：同 id 跳过；同词 lemma 把来源句/理解并入已有条目，不覆盖本地复习进度）或「覆盖」（先清空再导）。
-- **Anki CSV**：把生词本导出为 Anki 可导入的 CSV。卡正面=单词，**卡背=来源句 + 你历次说出的理解，不含释义**（ADR-014，忠于「不存释义」的 ADR-004）。Anki「文件→导入」选「字段由逗号分隔、允许字段内换行」即可。
+口语练习和语音对话需要语音转写和语音合成服务。它们走标准的 OpenAI 兼容音频协议（云端或本地皆可），也可用本地模型完全离线。除非你接入专门的发音评估服务，否则发音 / 流利度分数会留空并明确标注 —— 应用不会假造一个它测不出来的分数。
 
-## 关键设计不变量（不经新 ADR 不得违反）
+## 导入 / 导出（设置页）
 
-- **生词不存释义**，只存 `word + lemma + context_sentences[]`（ADR-004）。
-- **考试模式零脚手架**，但允许提前交卷（ADR-005）。
-- **无账号，单用户本地优先**，schema 预留 `user_id`（ADR-007）。
-- **一切外部依赖皆适配器**（ADR-002）；密钥只来自 `.env`，绝不入库。
-- **Anki 卡背放来源句+理解，不放释义；CSV 先行**（ADR-014）。
+- **JSON 全量备份** —— 导出全部数据（生词、错题、会话、配置），换机器时可原样导回。导入时可选**合并**（保留你已有的复习进度，只补充新句子）或**覆盖**（清空后重新导入）。
+- **Anki 导出** —— 把生词本导出为 Anki 可导入的 CSV。卡片正面是单词，背面是来源句加上你过去自己写下的理解 —— **没有现成释义**，与本应用的理念一致。在 Anki 里选「文件 → 导入」，设为逗号分隔字段并「允许字段内 HTML / 换行」。
+
+## 隐私
+
+一切都在本地运行。你的文本、生词、录音都留在你自己的电脑上；唯一离开本机的，是你主动发给所配置 AI 模型的内容。API key 只存在 `backend/.env`，绝不写进数据库。

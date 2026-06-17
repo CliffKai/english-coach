@@ -211,6 +211,9 @@ export const api = {
     postJson<ExtractResponse>('/api/vocab/extract', { text }),
   vocabCollect: (items: { word: string; lemma: string; context_sentences: string[] }[]) =>
     postJson<VocabEntry[]>('/api/vocab/collect', { items }),
+  // 用户补录生词（ADR-015）：text=从本文补词取原句；sentence=自填例句；都无则 LLM 造句。
+  vocabManual: (word: string, opts: { text?: string; sentence?: string } = {}) =>
+    postJson<VocabEntry>('/api/vocab/manual', { word, ...opts }),
   vocabList: () => getJson<VocabEntry[]>('/api/vocab'),
 
   // F3a

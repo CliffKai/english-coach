@@ -101,3 +101,10 @@ Thumbs.db
 *.pid
 *.log
 .docker/
+
+# ── 开发文档（只留本地，不上传）──────────────────────
+# 设计文档与 Agent/Claude 指令属于开发内部资料，保留在本地工作副本，
+# 不进版本库（面向开源用户的说明全在 README）。
+docs/
+CLAUDE.md
+AGENTS.md

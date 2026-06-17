@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.adapters.llm import ChatMessage, LLMProvider, Role
 from app.adapters.repository import WordRepository
 from app.models import DEFAULT_USER_ID, VocabEntry, VocabStatus
 from app.nlp.tokenizer import Tokenizer, VocabCandidate
@@ -40,6 +41,86 @@ class TokenizerAgent:
     def __init__(self, tokenizer: Tokenizer, words: WordRepository) -> None:
         self._tokenizer = tokenizer
         self._words = words
+
+    async def manual_candidate(
+        self,
+        word: str,
+        *,
+        text: str | None = None,
+        sentence: str | None = None,
+        llm: LLMProvider | None = None,
+    ) -> VocabCandidate:
+        """用户补录一个生词，按优先级取来源句产出候选（ADR-015）。
+
+        过滤会漏词（被基线判"已掌握"的词、或脱离文本临时想起的词），故给用户补录出口。
+        来源句优先级（越靠前越真实，越省 token）：
+          1. 用户自填 `sentence` → 直接用（零 LLM）。
+          2. 否则该词能在 `text` 中定位 → 取原文句（零 LLM，「从本文补词」）。
+          3. 否则有 `llm` → 造一个自然例句（conversation 档，「凭空加词」）。
+          4. 兜底：无来源句的纯词（不报错，背词仍可凭 word 复习，只是缺语境）。
+        lemma：能从文本/造句切出就用切出的，否则退化为 word 小写。
+        """
+        word = word.strip()
+        lemma = word.lower()
+
+        # 1. 用户自填例句：直接采用，并尽量用切词器还原 lemma。
+        if sentence and sentence.strip():
+            located = self._tokenizer.locate_in_text(word, sentence)
+            if located is not None:
+                lemma = located.lemma
+            return VocabCandidate(
+                word=word, lemma=lemma, zipf=0.0, context_sentences=[sentence.strip()]
+            )
+
+        # 2. 从当前文本定位（「从本文补词」）：取该词所在原句，纯确定性。
+        if text and text.strip():
+            located = self._tokenizer.locate_in_text(word, text)
+            if located is not None:
+                return VocabCandidate(
+                    word=located.text,
+                    lemma=located.lemma,
+                    zipf=located.zipf,
+                    context_sentences=[located.sentence] if located.sentence else [],
+                )
+
+        # 3. LLM 造句（「凭空加词」）：轻任务，走 conversation 档（调用方传入）。
+        if llm is not None:
+            generated = await self._generate_sentence(word, llm)
+            if generated:
+                located = self._tokenizer.locate_in_text(word, generated)
+                if located is not None:
+                    lemma = located.lemma
+                return VocabCandidate(
+                    word=word, lemma=lemma, zipf=0.0, context_sentences=[generated]
+                )
+
+        # 4. 兜底：无来源句的纯词。
+        return VocabCandidate(word=word, lemma=lemma, zipf=0.0, context_sentences=[])
+
+    @staticmethod
+    async def _generate_sentence(word: str, llm: LLMProvider) -> str | None:
+        """让 LLM 为 word 造一个自然、地道的英文例句作来源句（ADR-015）。
+
+        造的是「用法示例」非「释义」（忠于 ADR-004）：只回一句话，不附中文、不附定义。
+        失败（网络/空回复）返回 None，由调用方降级为无来源句，不报错。
+        """
+        messages = [
+            ChatMessage(
+                role=Role.SYSTEM,
+                content=(
+                    "You write a single natural English example sentence that uses the "
+                    "given word in a clear, everyday context. Reply with ONLY the sentence "
+                    "— no definition, no translation, no quotes, no extra text."
+                ),
+            ),
+            ChatMessage(role=Role.USER, content=f"Word: {word}"),
+        ]
+        try:
+            resp = await llm.chat(messages, temperature=0.7, max_tokens=60)
+        except Exception:  # noqa: BLE001 造句失败不该阻断补录，降级为无来源句
+            return None
+        text = resp.content.strip().strip('"').strip()
+        return text or None
 
     def extract(
         self, text: str, *, baseline: str | None, min_zipf: float = 1.0

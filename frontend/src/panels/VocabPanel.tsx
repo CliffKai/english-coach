@@ -14,6 +14,54 @@ export default function VocabPanel() {
   const [err, setErr] = useState<string | null>(null)
   const [savedCount, setSavedCount] = useState<number | null>(null)
 
+  // 补录生词（ADR-015）：从本文补词 / 凭空加词。
+  const [fromTextWord, setFromTextWord] = useState('')
+  const [manualWord, setManualWord] = useState('')
+  const [manualSentence, setManualSentence] = useState('')
+  const [manualBusy, setManualBusy] = useState(false)
+  const [manualErr, setManualErr] = useState<string | null>(null)
+  const [manualMsg, setManualMsg] = useState<string | null>(null)
+
+  async function addFromText() {
+    if (!fromTextWord.trim()) return
+    setManualBusy(true)
+    setManualErr(null)
+    setManualMsg(null)
+    try {
+      const entry = await api.vocabManual(fromTextWord.trim(), { text })
+      const ctx = entry.context_sentences[0]
+      setManualMsg(
+        ctx ? `已补录「${entry.word}」，来源句：${ctx}` : `已补录「${entry.word}」（该词未在本文中找到，已入库为无语境词）`,
+      )
+      setFromTextWord('')
+    } catch (e) {
+      setManualErr((e as Error).message)
+    } finally {
+      setManualBusy(false)
+    }
+  }
+
+  async function addManual() {
+    if (!manualWord.trim()) return
+    setManualBusy(true)
+    setManualErr(null)
+    setManualMsg(null)
+    try {
+      const entry = await api.vocabManual(manualWord.trim(), {
+        sentence: manualSentence.trim() || undefined,
+      })
+      const ctx = entry.context_sentences[0]
+      const how = manualSentence.trim() ? '你的例句' : 'AI 造句'
+      setManualMsg(ctx ? `已补录「${entry.word}」（${how}）：${ctx}` : `已补录「${entry.word}」（无来源句）`)
+      setManualWord('')
+      setManualSentence('')
+    } catch (e) {
+      setManualErr((e as Error).message)
+    } finally {
+      setManualBusy(false)
+    }
+  }
+
   async function extract() {
     setBusy(true)
     setErr(null)
@@ -122,6 +170,63 @@ export default function VocabPanel() {
           )}
         </Card>
       )}
+
+      <Card>
+        <h2 className="mb-1 font-medium">补录生词</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          系统按你的水平自动过滤候选——若它漏掉了你其实不认识的词，在这里手动补。存的仍是来源句，不存释义（ADR-004）。
+        </p>
+
+        <div className="space-y-2 rounded-md border border-slate-100 p-3">
+          <p className="text-sm font-medium text-slate-700">从本文补词</p>
+          <p className="text-xs text-slate-500">
+            上面文本框里出现、但没被切出来问的词——填进来，自动取它在本文中的句子作来源句。
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={fromTextWord}
+              onChange={(e) => setFromTextWord(e.target.value)}
+              placeholder="本文中的某个词"
+              disabled={!text.trim()}
+              className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-50"
+            />
+            <Button onClick={addFromText} disabled={manualBusy || !text.trim() || !fromTextWord.trim()}>
+              补录
+            </Button>
+          </div>
+          {!text.trim() && <p className="text-xs text-slate-400">先在上方粘贴文本后可用。</p>}
+        </div>
+
+        <div className="mt-3 space-y-2 rounded-md border border-slate-100 p-3">
+          <p className="text-sm font-medium text-slate-700">凭空加词</p>
+          <p className="text-xs text-slate-500">
+            脱离文本直接加一个词。可自填例句；留空则由 AI 造一个例句作来源句。
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={manualWord}
+              onChange={(e) => setManualWord(e.target.value)}
+              placeholder="单词"
+              className="w-40 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            />
+            <input
+              value={manualSentence}
+              onChange={(e) => setManualSentence(e.target.value)}
+              placeholder="例句（可选，留空则 AI 造句）"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            />
+            <Button onClick={addManual} disabled={manualBusy || !manualWord.trim()}>
+              补录
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center gap-3">
+          {manualBusy && <Spinner />}
+          {manualMsg && <span className="text-sm text-emerald-600">{manualMsg}</span>}
+        </div>
+        <ErrorNote message={manualErr} />
+      </Card>
     </div>
   )
 }

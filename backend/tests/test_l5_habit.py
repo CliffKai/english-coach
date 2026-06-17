@@ -148,11 +148,14 @@ def test_providers_lists_names_without_secrets(client, monkeypatch):
     """/api/providers 只回 provider 名，绝不含 base_url/api_key。"""
     from app.config import AppConfig, LLMProviderConnection, get_config
 
+    # _env_file=None：显式不读本地 .env，否则用户若配了 provider 会泄漏进这份 fake config
+    # 导致断言失败（测试须对环境隔离）。
     fake = AppConfig(
+        _env_file=None,
         llm_providers={
             "deepseek": LLMProviderConnection(base_url="http://secret/v1", api_key="sk-SECRET"),
             "claude": LLMProviderConnection(kind="claude", api_key="sk-ant-SECRET"),
-        }
+        },
     )
     monkeypatch.setattr("app.api.settings.get_config", lambda: fake)
     c, _ = client
