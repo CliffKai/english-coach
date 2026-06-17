@@ -109,7 +109,6 @@ function GuidedWrite() {
         { role: 'user', content: text },
         { role: 'assistant', content: r.follow_up },
       ])
-      setText('')
     } catch (e) {
       setErr((e as Error).message)
     } finally {

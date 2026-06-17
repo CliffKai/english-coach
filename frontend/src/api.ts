@@ -196,6 +196,11 @@ async function postJson<T>(path: string, body: unknown, method = 'POST'): Promis
   return resp.json() as Promise<T>
 }
 
+async function deleteEmpty(path: string): Promise<void> {
+  const resp = await fetch(path, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(await errText(path, resp))
+}
+
 async function errText(path: string, resp: Response): Promise<string> {
   try {
     const j = await resp.json()
@@ -218,6 +223,8 @@ export const api = {
   vocabManual: (word: string, opts: { text?: string; sentence?: string } = {}) =>
     postJson<VocabEntry>('/api/vocab/manual', { word, ...opts }),
   vocabList: () => getJson<VocabEntry[]>('/api/vocab'),
+  vocabDelete: (entry_id: string) =>
+    deleteEmpty(`/api/vocab/${encodeURIComponent(entry_id)}`),
 
   // F3a
   reviewNext: () => getJson<ReviewCard | null>('/api/review/next'),

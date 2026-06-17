@@ -4,6 +4,7 @@ POST /api/vocab/extract   文本 → 候选生词（切词+过滤，按 Settings
 POST /api/vocab/collect   把「不认识」的词连同来源句入库（按 lemma 查重合并）
 GET  /api/vocab           列出生词本
 GET  /api/vocab/due       FSRS 到期复习队列（F3a 消费）
+DELETE /api/vocab/{id}    从生词本永久删除一个词条
 
 切词/过滤是确定性的（L2 spaCy+wordfreq），不调 LLM（ADR-008）。逐词「认识/跳过/
 不认识」的问询是前端交互，后端只在 collect 收「不认识」的结果。
@@ -13,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 
 from app.agents.base import LLMNotConfiguredError
@@ -131,3 +132,14 @@ async def due(
     """FSRS 到期复习队列（F3a 消费）。排序/过滤在 WordRepository.list_due（L1/L2）。"""
     words = deps.require_words(c)
     return await words.list_due(limit=limit)
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_vocab(entry_id: str, c: ContainerDep) -> Response:
+    """从生词本永久删除一个词条。"""
+    words = deps.require_words(c)
+    entry = await words.get(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="生词不存在")
+    await words.delete(entry_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

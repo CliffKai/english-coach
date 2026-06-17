@@ -139,6 +139,34 @@ def test_review_submit_404_on_missing_entry(client_correct: TestClient):
     assert resp.status_code == 404
 
 
+def test_vocab_list_and_delete_entry(client_correct: TestClient):
+    collected = client_correct.post(
+        "/api/vocab/collect",
+        json={
+            "items": [
+                {
+                    "word": "obsolete",
+                    "lemma": "obsolete",
+                    "context_sentences": ["This obsolete tool should be removed."],
+                }
+            ]
+        },
+    ).json()
+    entry_id = collected[0]["id"]
+
+    listed = client_correct.get("/api/vocab").json()
+    assert [e["lemma"] for e in listed] == ["obsolete"]
+
+    resp = client_correct.delete(f"/api/vocab/{entry_id}")
+    assert resp.status_code == 204
+    assert resp.content == b""
+    assert client_correct.get("/api/vocab").json() == []
+    assert client_correct.get("/api/vocab/due").json() == []
+
+    missing = client_correct.delete(f"/api/vocab/{entry_id}")
+    assert missing.status_code == 404
+
+
 def test_baseline_assess_409_when_no_llm():
     """无 LLM 配置 → scoring 任务解析失败 → 409 提示去配模型。"""
     db = Database(":memory:")

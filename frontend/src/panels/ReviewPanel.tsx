@@ -35,6 +35,7 @@ function RecallExplain() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [empty, setEmpty] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     setBusy(true)
@@ -67,6 +68,22 @@ function RecallExplain() {
       setErr((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function deleteCurrent() {
+    if (!card) return
+    const ok = window.confirm(`从词库删除「${card.word}」？删除后不会再参与背词或导出。`)
+    if (!ok) return
+    setDeleting(true)
+    setErr(null)
+    try {
+      await api.vocabDelete(card.entry_id)
+      await load()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -108,12 +125,15 @@ function RecallExplain() {
                 placeholder="说说你的理解…"
                 className="mt-3 w-full rounded-md border border-slate-300 p-3 text-sm focus:border-slate-500 focus:outline-none"
               />
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button onClick={() => submit(false)} disabled={busy}>
                   提交理解
                 </Button>
                 <Button onClick={() => submit(true)} disabled={busy} variant="ghost">
                   太简单（秒答）
+                </Button>
+                <Button onClick={() => void deleteCurrent()} disabled={busy || deleting} variant="danger">
+                  {deleting ? '删除中…' : '不背，删除'}
                 </Button>
                 {busy && <Spinner />}
               </div>

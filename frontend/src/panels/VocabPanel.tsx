@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { api, type VocabCandidate } from '../api'
+import { useEffect, useState } from 'react'
+import { api, type VocabCandidate, type VocabEntry } from '../api'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
 
 // F1 生词收集：粘贴文本 → 切词候选 → 逐词「认识/跳过/不认识」→「不认识」入库（含来源句）。
@@ -22,6 +22,27 @@ export default function VocabPanel() {
   const [manualErr, setManualErr] = useState<string | null>(null)
   const [manualMsg, setManualMsg] = useState<string | null>(null)
 
+  const [vocab, setVocab] = useState<VocabEntry[] | null>(null)
+  const [vocabBusy, setVocabBusy] = useState(false)
+  const [vocabErr, setVocabErr] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function loadVocab(opts: { quiet?: boolean } = {}) {
+    if (!opts.quiet) setVocabBusy(true)
+    setVocabErr(null)
+    try {
+      setVocab(await api.vocabList())
+    } catch (e) {
+      setVocabErr((e as Error).message)
+    } finally {
+      if (!opts.quiet) setVocabBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadVocab()
+  }, [])
+
   async function addFromText() {
     if (!fromTextWord.trim()) return
     setManualBusy(true)
@@ -34,6 +55,7 @@ export default function VocabPanel() {
         ctx ? `已补录「${entry.word}」，来源句：${ctx}` : `已补录「${entry.word}」（该词未在本文中找到，已入库为无语境词）`,
       )
       setFromTextWord('')
+      await loadVocab({ quiet: true })
     } catch (e) {
       setManualErr((e as Error).message)
     } finally {
@@ -55,6 +77,7 @@ export default function VocabPanel() {
       setManualMsg(ctx ? `已补录「${entry.word}」（${how}）：${ctx}` : `已补录「${entry.word}」（无来源句）`)
       setManualWord('')
       setManualSentence('')
+      await loadVocab({ quiet: true })
     } catch (e) {
       setManualErr((e as Error).message)
     } finally {
@@ -93,10 +116,26 @@ export default function VocabPanel() {
       setSavedCount(saved.length)
       setCandidates(null)
       setText('')
+      await loadVocab({ quiet: true })
     } catch (e) {
       setErr((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function deleteEntry(entry: VocabEntry) {
+    const ok = window.confirm(`从词库删除「${entry.word}」？删除后不会再参与背词或导出。`)
+    if (!ok) return
+    setDeletingId(entry.id)
+    setVocabErr(null)
+    try {
+      await api.vocabDelete(entry.id)
+      setVocab((items) => (items ? items.filter((item) => item.id !== entry.id) : items))
+    } catch (e) {
+      setVocabErr((e as Error).message)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -226,6 +265,58 @@ export default function VocabPanel() {
           {manualMsg && <span className="text-sm text-emerald-600">{manualMsg}</span>}
         </div>
         <ErrorNote message={manualErr} />
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">我的词库</h2>
+            <p className="mt-1 text-sm text-slate-500">当前共 {vocab?.length ?? 0} 个词。</p>
+          </div>
+          <Button variant="ghost" onClick={() => void loadVocab()} disabled={vocabBusy}>
+            刷新
+          </Button>
+        </div>
+
+        {vocabBusy && !vocab ? (
+          <Spinner label="加载词库…" />
+        ) : vocab && vocab.length > 0 ? (
+          <ul className="divide-y divide-slate-100 rounded-md border border-slate-100">
+            {vocab.map((entry) => (
+              <li key={entry.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-slate-900">{entry.word}</span>
+                    {entry.lemma !== entry.word && (
+                      <span className="text-xs text-slate-400">lemma: {entry.lemma}</span>
+                    )}
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                      {entry.status}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      复习 {entry.fsrs_state.review_count} 次
+                    </span>
+                  </div>
+                  {entry.context_sentences[0] && (
+                    <p className="mt-1 break-words text-sm text-slate-500">
+                      {entry.context_sentences[0]}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="danger"
+                  onClick={() => void deleteEntry(entry)}
+                  disabled={deletingId === entry.id}
+                >
+                  {deletingId === entry.id ? '删除中…' : '删除'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">词库里还没有生词。</p>
+        )}
+        <ErrorNote message={vocabErr} />
       </Card>
     </div>
   )
