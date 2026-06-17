@@ -24,6 +24,7 @@ export default function App() {
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [tab, setTab] = useState<Tab>('today')
+  const activeTab = TABS.find((t) => t.key === tab)!
 
   const refreshMeta = useCallback(() => {
     return api
@@ -40,37 +41,43 @@ export default function App() {
   }, [refreshMeta])
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen bg-slate-50 text-slate-900 lg:flex">
+      <aside className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-6 py-5 lg:h-full lg:max-w-none lg:px-5 lg:py-6">
           <div>
             <h1 className="text-xl font-semibold">English Coach</h1>
             <p className="text-sm text-slate-500">理解式英语学习 Agent</p>
           </div>
-          <div className="flex items-center gap-3">
+
+          <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0">
+            {TABS.map((t) => {
+              const active = tab === t.key
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex min-w-max items-center rounded-md border px-3 py-2 text-left text-sm font-medium transition lg:min-w-0 lg:w-full ${
+                    active
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {t.title}
+                </button>
+              )
+            })}
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-2 lg:mt-auto lg:flex-col lg:items-stretch">
             <VoiceBadge meta={meta} />
             <ConnBadge conn={conn} version={meta?.version} />
           </div>
         </div>
-        <nav className="mx-auto flex max-w-4xl gap-1 px-6">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                tab === t.key
-                  ? 'border-slate-900 text-slate-900'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t.title}
-            </button>
-          ))}
-        </nav>
-      </header>
+      </aside>
 
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <p className="mb-5 text-sm text-slate-600">{TABS.find((t) => t.key === tab)!.desc}</p>
+      <main className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-8">
+        <p className="mb-5 text-sm text-slate-600">{activeTab.desc}</p>
         {conn === 'down' ? (
           <p className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700">
             后端未连接。请先启动后端：<code className="rounded bg-rose-100 px-1">uvicorn app.main:app --reload</code>
