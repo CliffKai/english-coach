@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, type ScoreResponse, type TutorResponse } from '../api'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
+import PracticeTopicInput from './PracticeTopicInput'
 import ScoreResult from './ScoreResult'
 import VoiceDialogue from './VoiceDialogue'
 
@@ -59,11 +60,12 @@ function FreeWrite() {
   return (
     <div className="space-y-4">
       <Card>
-        <input
+        <PracticeTopicInput
+          mode="free_write"
           value={topic}
-          onChange={(e) => setTopic(e.target.value)}
+          onChange={setTopic}
           placeholder="话题（可选）"
-          className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="mb-2"
         />
         <textarea
           value={text}
@@ -118,11 +120,12 @@ function GuidedWrite() {
   return (
     <div className="space-y-4">
       <Card>
-        <input
+        <PracticeTopicInput
+          mode="guided_write"
           value={topic}
-          onChange={(e) => setTopic(e.target.value)}
+          onChange={setTopic}
           placeholder="话题（可选）"
-          className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="mb-2"
         />
         <textarea
           value={text}

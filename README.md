@@ -12,7 +12,7 @@ Three features that feed one another:
 
 1. **Vocabulary collection** — paste any English text. The app splits it into words, skips the ones you already know (based on your level), and asks you word-by-word: *know it / skip / don't know*. Words you don't know are saved **together with the sentence they came from**, so later you remember *why* you didn't know them. No dictionary definitions are stored — meaning comes back to you from the sentence.
    - **Missed a word?** If the app filtered out a word you actually don't know, just add it yourself — it'll grab the sentence from your text. You can also add a word out of the blue (type your own example sentence, or let the AI write one).
-2. **Topic practice** — pick a topic and a mode:
+2. **Topic practice** — write your own topic, or let the AI suggest an editable one, then pick a mode:
    - *Practice mode* (guided writing / speaking): instant corrections and hints as you go.
    - *Exam mode* (free writing / dialogue): no help while you work — errors are noted silently, and when you finish (or hand in early) you get IELTS/TOEFL-style scores plus a full error report.
 3. **Comprehension-based review** — instead of flashing a definition at you, the app shows the original sentence and asks you to explain the word *in your own words*, or weaves your words into a short passage to translate. Review timing is scheduled automatically (spaced repetition) so you revisit words right before you'd forget them.

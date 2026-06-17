@@ -111,6 +111,31 @@ def test_dialogue_turn_returns_reply():
     db.close()
 
 
+def test_practice_topic_suggests_editable_topic():
+    container, db = _container(json.dumps({"topic": "Should students learn how to use AI tools at school?"}))
+    with TestClient(app) as c:
+        set_container(container)
+        resp = c.post("/api/practice/topic", json={"mode": "guided_write"})
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "topic": "Should students learn how to use AI tools at school?"
+        }
+        prompt = container.llm.calls[0][-1].content
+        assert "guided writing" in prompt
+    set_container(Container())
+    db.close()
+
+
+def test_practice_topic_409_when_no_llm():
+    db = Database(":memory:")
+    with TestClient(app) as c:
+        set_container(Container(settings=SqliteSettingsRepository(db)))
+        resp = c.post("/api/practice/topic", json={"mode": "free_write"})
+        assert resp.status_code == 409
+    set_container(Container())
+    db.close()
+
+
 # ── F3b /review/passage + /review/passage/check ────────────────────
 def test_passage_make_and_check_advances_fsrs():
     passage_reply = json.dumps(

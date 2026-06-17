@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScoreResponse } from '../api'
 import { useRecorder } from '../useRecorder'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
+import PracticeTopicInput from './PracticeTopicInput'
 import ScoreResult from './ScoreResult'
 
 // F2d 语音对话打分（WebSocket + MediaRecorder + STT/TTS 流式，docs/02）。
@@ -121,11 +122,12 @@ export default function VoiceDialogue() {
       <Card>
         {!connected && !result ? (
           <>
-            <input
+            <PracticeTopicInput
+              mode="dialogue"
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
+              onChange={setTopic}
               placeholder="对话话题（可选，如 travel / technology）"
-              className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              className="mb-3"
             />
             <Button onClick={connect}>开始语音对话</Button>
             <p className="mt-2 text-xs text-slate-400">

@@ -1,5 +1,6 @@
 """话题练习路由 —— 考试模式（延迟纠错 + 打分）：F2c 自由写作 + F2d 对话打分。
 
+POST /api/practice/topic          练习开始前生成一个可选话题（不落库，可编辑/可留空）
 POST /api/practice/dialogue/turn  F2d 对话单轮：用户话语 + 历史 → 自然回话（不纠错/不打分）
 POST /api/practice/score          提交 → 打分 + 错误检测 → 复盘 + 回填错题本 → 落库会话
 GET  /api/practice                列出历史练习会话
@@ -17,8 +18,8 @@ ErrorEntry 落库（07 红线：buffer 临时，产出即消费）。
 口语发音/流利度（ADR-013）：本 HTTP 文本路径无音频证据，发音评估为 None →
 ExaminerAgent 让发音/流利度维度**空缺并标注**，不假评（真音频评估走 L4 WS 路径）。
 
-模型分配（ADR-006）：打分走 scoring 档（要准要稳），复盘走 reasoning 档，
-对话单轮回话走 conversation 档（量大、性价比）。
+模型分配（ADR-006）：打分走 scoring 档（要准要稳），复盘/引导走 reasoning 档，
+话题生成/对话单轮回话走 conversation 档（量大、性价比）。
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from pydantic import BaseModel
 from app.adapters.llm import ChatMessage, Role
 from app.agents.error_analysis import AnalysisReport, ErrorAnalysisAgent
 from app.agents.examiner import DimensionScore, ExaminerAgent
+from app.agents.topic_suggestion import TopicSuggestionAgent
 from app.agents.tutor import Correction, TutorAgent
 from app.api import deps
 from app.container import Container
@@ -67,6 +69,31 @@ class ScoreResponse(BaseModel):
     estimated: bool  # 恒 True：AI 估算，UI 须明示（07 可信度风险）
     errors: list[ErrorEntry]  # 已落库的错题（含 id，供前端跳错题本）
     report: AnalysisReport  # 复盘（模式识别 + 中文总结）
+
+
+class TopicSuggestionRequest(BaseModel):
+    """练习开始前生成一个可选话题。"""
+
+    mode: PracticeMode = PracticeMode.FREE_WRITE
+
+
+class TopicSuggestionResponse(BaseModel):
+    """前端填入 topic 输入框的建议话题；用户仍可编辑/删除/留空。"""
+
+    topic: str
+
+
+@router.post("/api/practice/topic")
+async def suggest_topic(
+    req: TopicSuggestionRequest, c: ContainerDep
+) -> TopicSuggestionResponse:
+    """可选随机话题生成。只发生在练习开始前，不改变考试模式零脚手架规则。"""
+    settings = await deps.load_settings(c)
+    llm = deps.require_task_llm(c, "conversation", settings=settings)
+    result = await TopicSuggestionAgent(llm).suggest(
+        mode=req.mode, baseline=settings.level_baseline
+    )
+    return TopicSuggestionResponse(topic=result.topic)
 
 
 class DialogueTurn(BaseModel):

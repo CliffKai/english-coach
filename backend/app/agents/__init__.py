@@ -11,6 +11,7 @@ L3 落地五个（按 07 严格顺序）：
 - ExaminerAgent       F2c/F2d 考试模式打分（scoring 任务，延迟纠错 + 多维度打分；2d 对话）
 - ErrorAnalysisAgent  F2 收尾（reasoning 任务，buffer → 错题本 + 模式识别复盘）—— 紧跟 Examiner
 - TutorAgent          F2a/2b 引导写/说（reasoning 任务，练习模式即时纠错 + 脚手架）—— L4
+- TopicSuggestionAgent F2 练习前可选话题生成（conversation 任务，不落库）
 """
 
 from app.agents.base import (
@@ -34,6 +35,7 @@ from app.agents.memory_word import (
     WordCheck,
 )
 from app.agents.tokenizer_agent import CollectItem, TokenizerAgent
+from app.agents.topic_suggestion import SuggestedTopic, TopicSuggestionAgent
 from app.agents.tutor import Correction, TutorAgent, TutorTurn
 
 __all__ = [
@@ -58,4 +60,6 @@ __all__ = [
     "TutorAgent",
     "TutorTurn",
     "Correction",
+    "TopicSuggestionAgent",
+    "SuggestedTopic",
 ]

@@ -176,6 +176,9 @@ export interface TutorResponse {
 export interface DialogueTurnResponse {
   reply: string
 }
+export interface PracticeTopicResponse {
+  topic: string
+}
 
 async function getJson<T>(path: string): Promise<T> {
   const resp = await fetch(path)
@@ -233,6 +236,8 @@ export const api = {
   // F2c / F2d
   practiceScore: (text: string, mode: string, topic?: string, ended_early = false) =>
     postJson<ScoreResponse>('/api/practice/score', { text, mode, topic, ended_early }),
+  practiceTopic: (mode: string) =>
+    postJson<PracticeTopicResponse>('/api/practice/topic', { mode }),
   // F2a / F2b
   practiceTutor: (
     text: string,
