@@ -64,6 +64,25 @@ class UserUnderstanding(BaseModel):
     created_at: datetime = Field(default_factory=_now)
 
 
+class UserAccount(BaseModel):
+    """本地登录账号。
+
+    密码只以哈希形式存入数据库；API/provider 密钥仍只来自 .env，不进本表。
+    """
+
+    id: str = Field(default_factory=_new_id)
+    username: str
+    password_hash: str
+    created_at: datetime = Field(default_factory=_now)
+
+
+class PublicUser(BaseModel):
+    """返回给前端的账号信息，不含 password_hash。"""
+
+    id: str
+    username: str
+
+
 class VocabEntry(BaseModel):
     """生词条目 —— 功能1产出，功能3消费。
 

@@ -326,6 +326,28 @@ function DataCard() {
     }
   }
 
+  async function download(kind: 'json' | 'anki') {
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const blob = kind === 'json' ? await api.exportJson() : await api.exportAnki()
+      const filename = kind === 'json' ? 'english-coach-backup.json' : 'english-coach-vocab.csv'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Card>
       <h2 className="mb-2 font-medium">数据导入 / 导出</h2>
@@ -333,12 +355,12 @@ function DataCard() {
         JSON 全量备份可原样导回本应用；Anki CSV 把生词本（卡背=来源句+你的理解，不存释义）对接 Anki 工作流。
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <a href={api.exportJsonUrl} download>
-          <Button variant="ghost">导出 JSON 全量备份</Button>
-        </a>
-        <a href={api.exportAnkiUrl} download>
-          <Button variant="ghost">导出生词本到 Anki (CSV)</Button>
-        </a>
+        <Button variant="ghost" onClick={() => download('json')} disabled={busy}>
+          导出 JSON 全量备份
+        </Button>
+        <Button variant="ghost" onClick={() => download('anki')} disabled={busy}>
+          导出生词本到 Anki (CSV)
+        </Button>
       </div>
       <div className="mt-4 border-t border-slate-100 pt-3">
         <label className="mb-2 flex items-center gap-2 text-sm text-slate-600">

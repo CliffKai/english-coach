@@ -6,19 +6,23 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
+from typing import Annotated
 
+from fastapi import Depends, Header, HTTPException
+
+from app import auth as auth_utils
 from app.adapters.repository import (
     ErrorRepository,
     SessionRepository,
     SettingsRepository,
+    UserRepository,
     WordRepository,
 )
 from app.adapters.speech import PronunciationProvider, STTProvider, TTSProvider
 from app.agents.base import LLMNotConfiguredError, TaskKind, resolve_task_llm
 from app.config import get_config
 from app.container import Container, get_container
-from app.models import DEFAULT_USER_ID, Settings
+from app.models import DEFAULT_USER_ID, PublicUser, Settings
 from app.nlp.tokenizer import Tokenizer
 from app.scheduling import Scheduler
 
@@ -38,6 +42,12 @@ def require_settings_repo(c: Container) -> SettingsRepository:
     if c.settings is None:
         raise HTTPException(status_code=503, detail="配置存储未就绪")
     return c.settings
+
+
+def require_users(c: Container) -> UserRepository:
+    if c.users is None:
+        raise HTTPException(status_code=503, detail="账号存储未就绪")
+    return c.users
 
 
 def require_sessions(c: Container) -> SessionRepository:
@@ -90,6 +100,52 @@ async def load_settings(c: Container, *, user_id: str = DEFAULT_USER_ID) -> Sett
         return Settings(user_id=user_id)
     existing = await c.settings.get(user_id=user_id)
     return existing or Settings(user_id=user_id)
+
+
+async def optional_current_user(
+    c: Annotated[Container, Depends(container)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> PublicUser:
+    """当前学习数据所属用户。
+
+    无 Authorization 时回落到历史单用户 local-user，便于本地脚本/旧测试继续工作。
+    前端登录后会始终带 Bearer token，此时按真实账号隔离数据。
+    """
+    if not authorization:
+        return PublicUser(id=DEFAULT_USER_ID, username=DEFAULT_USER_ID)
+    return await _user_from_authorization(c, authorization)
+
+
+async def current_user(
+    c: Annotated[Container, Depends(container)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> PublicUser:
+    """要求已登录；/api/auth/me 等账号接口使用。"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="请先登录")
+    return await _user_from_authorization(c, authorization)
+
+
+async def _user_from_authorization(c: Container, authorization: str) -> PublicUser:
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="无效的登录凭证")
+    try:
+        payload = auth_utils.decode_access_token(token, secret=get_config().auth_secret)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="登录已失效，请重新登录") from exc
+    users = require_users(c)
+    user = await users.get(payload["sub"])
+    if user is None:
+        raise HTTPException(status_code=401, detail="账号不存在，请重新登录")
+    return PublicUser(id=user.id, username=user.username)
+
+
+async def user_from_token(c: Container, token: str | None) -> PublicUser:
+    """WebSocket 使用：从 query token 解析用户；缺省时沿用 local-user 回退。"""
+    if not token:
+        return PublicUser(id=DEFAULT_USER_ID, username=DEFAULT_USER_ID)
+    return await _user_from_authorization(c, f"Bearer {token}")
 
 
 def require_task_llm(c: Container, task: TaskKind, *, settings: Settings):

@@ -112,7 +112,9 @@ def test_dialogue_turn_returns_reply():
 
 
 def test_practice_topic_suggests_editable_topic():
-    container, db = _container(json.dumps({"topic": "Should students learn how to use AI tools at school?"}))
+    container, db = _container(
+        json.dumps({"topic": "Should students learn how to use AI tools at school?"})
+    )
     with TestClient(app) as c:
         set_container(container)
         resp = c.post("/api/practice/topic", json={"mode": "guided_write"})

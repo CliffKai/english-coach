@@ -42,10 +42,16 @@ router = APIRouter(tags=["voice"])
 
 
 @router.websocket("/ws/practice/dialogue")
-async def dialogue_ws(ws: WebSocket) -> None:
+async def dialogue_ws(ws: WebSocket, token: str | None = None) -> None:
     """F2d 语音对话：录音→STT→考官回话→TTS 流式播放；交卷→结算打分。"""
     await ws.accept()
     c = get_container()
+    try:
+        user = await deps.user_from_token(c, token)
+    except HTTPException as exc:
+        await ws.send_json({"type": "error", "detail": str(exc.detail)})
+        await ws.close()
+        return
 
     # 语音前置：STT/TTS 未配置则告知并关闭（ADR-012：默认走 API，未配为 None）。
     if c.stt is None or c.tts is None:
@@ -133,6 +139,7 @@ async def dialogue_ws(ws: WebSocket) -> None:
             elif kind == "submit":
                 result = await _settle(
                     c,
+                    user_id=user.id,
                     user_turns=user_turns,
                     topic=topic,
                     ended_early=bool(ctrl.get("ended_early", False)),
@@ -157,11 +164,12 @@ async def dialogue_ws(ws: WebSocket) -> None:
         await _safe_close(ws)
 
 
-async def _settle(c, *, user_turns, topic, ended_early, pron) -> dict:
+async def _settle(c, *, user_id, user_turns, topic, ended_early, pron) -> dict:
     """交卷结算：累积用户话语整体打分 + 错误检测 + 复盘 + 落库（复用 F2c 链路）。"""
     text = "\n".join(user_turns)
     resp = await settle_exam(
         c,
+        user_id=user_id,
         text=text,
         mode=PracticeMode.DIALOGUE,
         topic=topic,

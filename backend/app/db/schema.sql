@@ -10,6 +10,16 @@
 
 PRAGMA foreign_keys = ON;
 
+-- ── 本地账号（阶段 1 登录/注册）────────────────────────────────
+-- API/provider 密钥仍来自 backend/.env；本表只保存本地账号与密码哈希。
+CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+
 -- ── 生词条目（功能1产出，功能3消费）──────────────────────────────
 -- 关键：不存释义，只存 word + lemma + context_sentences[]（ADR-004）。
 CREATE TABLE IF NOT EXISTS vocab_entries (

@@ -9,7 +9,9 @@ from app.models.entities import (
     ErrorEntry,
     FsrsState,
     PracticeSession,
+    PublicUser,
     Settings,
+    UserAccount,
     VocabEntry,
 )
 from app.models.enums import (
@@ -18,8 +20,8 @@ from app.models.enums import (
     PracticeMode,
     PronunciationProviderKind,
     ScoringStandard,
-    STTAdapterKind,
     StorageBackend,
+    STTAdapterKind,
     TTSAdapterKind,
     VocabStatus,
 )
@@ -31,6 +33,8 @@ __all__ = [
     "PracticeSession",
     "Settings",
     "FsrsState",
+    "UserAccount",
+    "PublicUser",
     "VocabStatus",
     "ErrorType",
     "PracticeMode",

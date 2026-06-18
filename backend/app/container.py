@@ -19,6 +19,7 @@ from app.adapters import (
     SettingsRepository,
     STTProvider,
     TTSProvider,
+    UserRepository,
     WordRepository,
 )
 from app.nlp import Tokenizer
@@ -34,6 +35,7 @@ class Container:
     errors: ErrorRepository | None = None
     sessions: SessionRepository | None = None
     settings: SettingsRepository | None = None
+    users: UserRepository | None = None
     stt: STTProvider | None = None
     tts: TTSProvider | None = None
     pronunciation: PronunciationProvider | None = None

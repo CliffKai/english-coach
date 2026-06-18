@@ -22,13 +22,14 @@ from pydantic import BaseModel
 from app.agents.memory_word import MemoryWordAgent
 from app.api import deps
 from app.container import Container
-from app.models import VocabEntry, VocabStatus
+from app.models import PublicUser, VocabEntry, VocabStatus
 from app.models.entities import UserUnderstanding
 from app.scheduling import ReviewRating
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
 ContainerDep = Annotated[Container, Depends(deps.container)]
+UserDep = Annotated[PublicUser, Depends(deps.optional_current_user)]
 
 
 class ReviewCard(BaseModel):
@@ -56,10 +57,10 @@ class SubmitResponse(BaseModel):
 
 
 @router.get("/next")
-async def next_card(c: ContainerDep) -> ReviewCard | None:
+async def next_card(c: ContainerDep, user: UserDep) -> ReviewCard | None:
     """取下一张到期复习卡。队列空（今日无到期）→ 返回 null。"""
     words = deps.require_words(c)
-    due = await words.list_due(limit=1)
+    due = await words.list_due(user_id=user.id, limit=1)
     if not due:
         return None
     e = due[0]
@@ -73,13 +74,13 @@ async def next_card(c: ContainerDep) -> ReviewCard | None:
 
 
 @router.post("/submit")
-async def submit(req: SubmitRequest, c: ContainerDep) -> SubmitResponse:
+async def submit(req: SubmitRequest, c: ContainerDep, user: UserDep) -> SubmitResponse:
     """提交理解 → 判断 → 推进 FSRS。"""
     words = deps.require_words(c)
     scheduler = deps.require_scheduler(c)
     settings = await deps.load_settings(c)
 
-    entry = await words.get(req.entry_id)
+    entry = await words.get(req.entry_id, user_id=user.id)
     if entry is None:
         raise HTTPException(status_code=404, detail="生词不存在")
 
@@ -156,7 +157,7 @@ class PassageCheckResponse(BaseModel):
 
 
 @router.post("/passage")
-async def make_passage(req: PassageRequest, c: ContainerDep) -> PassageResponse:
+async def make_passage(req: PassageRequest, c: ContainerDep, user: UserDep) -> PassageResponse:
     """用一批到期生词造短文供翻译（F3b）。不含释义（ADR-004）。"""
     words = deps.require_words(c)
     settings = await deps.load_settings(c)
@@ -165,11 +166,11 @@ async def make_passage(req: PassageRequest, c: ContainerDep) -> PassageResponse:
     if req.entry_ids:
         picked: list[VocabEntry] = []
         for eid in req.entry_ids:
-            e = await words.get(eid)
+            e = await words.get(eid, user_id=user.id)
             if e is not None:
                 picked.append(e)
     else:
-        picked = await words.list_due(limit=req.limit)
+        picked = await words.list_due(user_id=user.id, limit=req.limit)
     if not picked:
         return PassageResponse(text="", words=[])
 
@@ -188,7 +189,9 @@ async def make_passage(req: PassageRequest, c: ContainerDep) -> PassageResponse:
 
 
 @router.post("/passage/check")
-async def check_passage(req: PassageCheckRequest, c: ContainerDep) -> PassageCheckResponse:
+async def check_passage(
+    req: PassageCheckRequest, c: ContainerDep, user: UserDep
+) -> PassageCheckResponse:
     """提交翻译 → 逐词检验语境理解 → 各自映射 FSRS 评级 → 推进调度（F3b）。"""
     words = deps.require_words(c)
     scheduler = deps.require_scheduler(c)
@@ -201,7 +204,7 @@ async def check_passage(req: PassageCheckRequest, c: ContainerDep) -> PassageChe
 
     results: list[WordCheckResult] = []
     for chk in checks:
-        entry = await words.get_by_lemma(chk.word, user_id=settings.user_id)
+        entry = await words.get_by_lemma(chk.word, user_id=user.id)
         if entry is None:
             # 词不在库（已删/lemma 对不上）→ 仍回结果但不推进调度。
             results.append(

@@ -24,11 +24,12 @@ from pydantic import BaseModel
 
 from app.api import deps
 from app.container import Container
-from app.models import VocabEntry
+from app.models import PublicUser, VocabEntry
 
 router = APIRouter(prefix="/api/today", tags=["today"])
 
 ContainerDep = Annotated[Container, Depends(deps.container)]
+UserDep = Annotated[PublicUser, Depends(deps.optional_current_user)]
 
 # 首页各区展示的示例条数（只为「让用户看一眼」，完整列表点进各功能页看）。
 _DUE_PREVIEW = 5
@@ -92,22 +93,20 @@ def _recommend_topic(error_topics: list[str | None], *, now: datetime) -> TopicR
 
 
 @router.get("")
-async def today(c: ContainerDep) -> TodayResponse:
+async def today(c: ContainerDep, user: UserDep) -> TodayResponse:
     """聚合首页数据。只读、确定性、不调 LLM；上游空则各区为 0/空。"""
     words = deps.require_words(c)
     errors_repo = deps.require_errors(c)
-    settings = await deps.load_settings(c)
-
     # 待复习生词：FSRS 到期队列（list_due 已按 due 升序、空 due 优先，L1/L2）。
     # 显式标注：Repository 有名为 `list` 的方法遮蔽内建 list，mypy 会错判 list_due 返回值
     # 不可索引（同 review.py），标注本地变量即恢复正确类型。
-    due: list[VocabEntry] = await words.list_due(user_id=settings.user_id)
+    due: list[VocabEntry] = await words.list_due(user_id=user.id)
     due_preview = [
         DueWordPreview(entry_id=e.id, word=e.word, lemma=e.lemma) for e in due[:_DUE_PREVIEW]
     ]
 
     # 待巩固错题：resolved=False（首页只督促还没解决的，ADR：错题毕业后不再唠叨）。
-    unresolved = await errors_repo.list(user_id=settings.user_id, resolved=False)
+    unresolved = await errors_repo.list(user_id=user.id, resolved=False)
     error_preview = [
         ErrorPreview(id=e.id, type=e.type.value, original=e.original, correction=e.correction)
         for e in unresolved[:_ERROR_PREVIEW]

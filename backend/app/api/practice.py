@@ -36,11 +36,12 @@ from app.agents.topic_suggestion import TopicSuggestionAgent
 from app.agents.tutor import Correction, TutorAgent
 from app.api import deps
 from app.container import Container
-from app.models import ErrorEntry, PracticeMode, PracticeSession, ScoringStandard
+from app.models import ErrorEntry, PracticeMode, PracticeSession, PublicUser, ScoringStandard
 
 router = APIRouter(tags=["practice"])
 
 ContainerDep = Annotated[Container, Depends(deps.container)]
+UserDep = Annotated[PublicUser, Depends(deps.optional_current_user)]
 
 # 本接口受理的考试模式（延迟纠错）。练习模式 guided_* 即时纠错，归 TutorAgent（/tutor）。
 _EXAM_MODES = (PracticeMode.FREE_WRITE, PracticeMode.DIALOGUE)
@@ -183,7 +184,7 @@ async def tutor(req: TutorRequest, c: ContainerDep) -> TutorResponse:
 
 
 @router.post("/api/practice/score")
-async def score(req: ScoreRequest, c: ContainerDep) -> ScoreResponse:
+async def score(req: ScoreRequest, c: ContainerDep, user: UserDep) -> ScoreResponse:
     """考试模式结算：打分 → 错误检测 → 复盘 → 回填错题本 → 落库会话。
 
     顺序即 07 的 F2c → ErrorAnalysis 红线：ExaminerAgent 的隐藏 buffer 当场交给
@@ -199,6 +200,7 @@ async def score(req: ScoreRequest, c: ContainerDep) -> ScoreResponse:
     # ExaminerAgent 让这些维度空缺并标注（不假评，ADR-013）。真音频评估走 L4 WS 路径。
     return await settle_exam(
         c,
+        user_id=user.id,
         text=req.text,
         mode=req.mode,
         topic=req.topic,
@@ -210,6 +212,7 @@ async def score(req: ScoreRequest, c: ContainerDep) -> ScoreResponse:
 async def settle_exam(
     c: Container,
     *,
+    user_id: str,
     text: str,
     mode: PracticeMode,
     topic: str | None,
@@ -242,7 +245,7 @@ async def settle_exam(
 
     # 在此构造会话对象（id 此刻即生成，default_factory），但**先不落库**——错题要挂这个 id。
     session = PracticeSession(
-        user_id=settings.user_id,
+        user_id=user_id,
         mode=mode,
         topic=topic,
         transcript=text,
@@ -250,12 +253,12 @@ async def settle_exam(
         ended_early=ended_early,
     )
     entries = analysis_agent.to_entries(
-        exam.errors, session_id=session.id, topic=topic, user_id=settings.user_id
+        exam.errors, session_id=session.id, topic=topic, user_id=user_id
     )
 
     # 复盘要在写入本次错误**之前**取历史，否则本次错误会被当成「既往反复出现的模式」
     # （首犯被误判为复发）。history 仅含此前未解决错题。
-    history = await errors_repo.list(user_id=settings.user_id, resolved=False)
+    history = await errors_repo.list(user_id=user_id, resolved=False)
     report = await analysis_agent.analyze(exam.errors, history=history, topic=topic)
 
     # 所有可能失败的 LLM/解析工作已完成，到此才落库，把部分写入窗口压到最小。
@@ -279,20 +282,21 @@ async def settle_exam(
 
 
 @router.get("/api/practice")
-async def list_sessions(c: ContainerDep) -> list[PracticeSession]:
+async def list_sessions(c: ContainerDep, user: UserDep) -> list[PracticeSession]:
     """历史练习会话（最近在前；首页/进度用）。"""
     sessions = deps.require_sessions(c)
-    return await sessions.list()
+    return await sessions.list(user_id=user.id)
 
 
 @router.get("/api/errors")
 async def list_errors(
     c: ContainerDep,
+    user: UserDep,
     resolved: bool | None = Query(default=None),
 ) -> list[ErrorEntry]:
     """错题本。resolved=None 全部；False 仅待巩固（首页错题区用）。"""
     errors_repo = deps.require_errors(c)
-    return await errors_repo.list(resolved=resolved)
+    return await errors_repo.list(user_id=user.id, resolved=resolved)
 
 
 def _scores_json(

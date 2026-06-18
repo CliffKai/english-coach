@@ -28,6 +28,7 @@ from app.models import (
     DEFAULT_USER_ID,
     ErrorEntry,
     PracticeSession,
+    PublicUser,
     Settings,
     VocabEntry,
 )
@@ -36,6 +37,7 @@ from app.models.entities import UserUnderstanding
 router = APIRouter(tags=["data"])
 
 ContainerDep = Annotated[Container, Depends(deps.container)]
+UserDep = Annotated[PublicUser, Depends(deps.optional_current_user)]
 
 # 备份格式版本：未来 schema 演进时据此做迁移/拒绝不兼容的旧备份。
 EXPORT_VERSION = 1
@@ -75,7 +77,7 @@ class ImportResult(BaseModel):
 
 
 @router.get("/api/export/json")
-async def export_json(c: ContainerDep) -> BackupBundle:
+async def export_json(c: ContainerDep, user: UserDep) -> BackupBundle:
     """全量备份：四类实体打包成一个 JSON（含全字段，可再 import 回来）。"""
     words = deps.require_words(c)
     errors_repo = deps.require_errors(c)
@@ -83,15 +85,15 @@ async def export_json(c: ContainerDep) -> BackupBundle:
     settings_repo = deps.require_settings_repo(c)
 
     return BackupBundle(
-        vocab=await words.list(),
-        errors=await errors_repo.list(),
-        sessions=await sessions.list(),
+        vocab=await words.list(user_id=user.id),
+        errors=await errors_repo.list(user_id=user.id),
+        sessions=await sessions.list(user_id=user.id),
         settings=await settings_repo.get(),
     )
 
 
 @router.post("/api/import/json")
-async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
+async def import_json(req: ImportRequest, c: ContainerDep, user: UserDep) -> ImportResult:
     """从备份恢复。replace=True 先清空业务三表再写；否则合并（id 冲突跳过）。"""
     words = deps.require_words(c)
     errors_repo = deps.require_errors(c)
@@ -108,28 +110,30 @@ async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
     # 覆盖模式：删该 user 的生词/错题/会话（settings 走 UPSERT，无需先删）。
     # 顺序：先错题（外键引用会话）再会话，避免 FK 约束（schema.sql 外键 ON）。
     if req.replace:
-        uid = bundle.settings.user_id if bundle.settings else DEFAULT_USER_ID
-        for e in await errors_repo.list(user_id=uid):
+        for e in await errors_repo.list(user_id=user.id):
             await errors_repo.delete(e.id, user_id=e.user_id)
-        for s in await sessions.list(user_id=uid):
+        for s in await sessions.list(user_id=user.id):
             await sessions.delete(s.id, user_id=s.user_id)
-        for v in await words.list(user_id=uid):
+        for v in await words.list(user_id=user.id):
             await words.delete(v.id, user_id=v.user_id)
 
     skipped = 0
 
     # 已存在 id 的集合（合并模式下据此跳过，避免主键冲突报错）。
-    existing_vocab = {v.id for v in await words.list()}
-    existing_errors = {e.id for e in await errors_repo.list()}
-    existing_sessions = {s.id for s in await sessions.list()}
+    existing_vocab = {v.id for v in await words.list(user_id=user.id)}
+    existing_errors = {e.id for e in await errors_repo.list(user_id=user.id)}
+    existing_sessions = {s.id for s in await sessions.list(user_id=user.id)}
     # 已存在 (user_id, lemma) → 条目：vocab 表在 (user_id, lemma) 上有唯一索引（schema.sql），
     # 合并不同安装的备份时常见「新 id、同 lemma」——只查 id 会撞唯一索引 500。故按 lemma 合并
     # 来源句/理解（ADR-004/010：同词不同义并呈），而非新建或崩溃。
-    existing_by_lemma = {(v.user_id, v.lemma): v for v in await words.list()}
+    existing_by_lemma = {
+        (v.user_id, v.lemma): v for v in await words.list(user_id=user.id)
+    }
 
     # 顺序：先会话后错题——error_entries.session_id 外键引用 practice_sessions。
     sessions_imported = 0
-    for s in bundle.sessions:
+    for raw in bundle.sessions:
+        s = raw.model_copy(update={"user_id": user.id})
         if s.id in existing_sessions:
             skipped += 1
             continue
@@ -138,7 +142,8 @@ async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
 
     vocab_imported = 0
     vocab_merged = 0
-    for v in bundle.vocab:
+    for raw in bundle.vocab:
+        v = raw.model_copy(update={"user_id": user.id})
         if v.id in existing_vocab:
             skipped += 1
             continue
@@ -167,7 +172,11 @@ async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
 
     errors_imported = 0
     if bundle.errors:
-        fresh = [e for e in bundle.errors if e.id not in existing_errors]
+        fresh = [
+            e.model_copy(update={"user_id": user.id})
+            for e in bundle.errors
+            if e.id not in existing_errors
+        ]
         skipped += len(bundle.errors) - len(fresh)
         if fresh:
             await errors_repo.add_many(fresh)
@@ -175,7 +184,7 @@ async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
 
     settings_imported = False
     if bundle.settings is not None:
-        await settings_repo.save(bundle.settings)
+        await settings_repo.save(bundle.settings.model_copy(update={"user_id": DEFAULT_USER_ID}))
         settings_imported = True
 
     return ImportResult(
@@ -189,14 +198,14 @@ async def import_json(req: ImportRequest, c: ContainerDep) -> ImportResult:
 
 
 @router.get("/api/export/anki")
-async def export_anki(c: ContainerDep) -> StreamingResponse:
+async def export_anki(c: ContainerDep, user: UserDep) -> StreamingResponse:
     """生词本导出 Anki CSV（ADR-014）。
 
     两列 Front,Back：正面=word；背面=来源句 + 用户理解历史（不含释义）。
     导出已知词也一并带（用户在 Anki 里自行管理节奏）；空生词本 → 仅表头。
     """
     words = deps.require_words(c)
-    entries = await words.list()
+    entries = await words.list(user_id=user.id)
 
     buf = io.StringIO()
     writer = csv.writer(buf)

@@ -15,8 +15,22 @@ from app.models import (
     ErrorEntry,
     PracticeSession,
     Settings,
+    UserAccount,
     VocabEntry,
 )
+
+
+class UserRepository(ABC):
+    """本地账号存取。"""
+
+    @abstractmethod
+    async def add(self, user: UserAccount) -> UserAccount: ...
+
+    @abstractmethod
+    async def get(self, user_id: str) -> UserAccount | None: ...
+
+    @abstractmethod
+    async def get_by_username(self, username: str) -> UserAccount | None: ...
 
 
 class WordRepository(ABC):

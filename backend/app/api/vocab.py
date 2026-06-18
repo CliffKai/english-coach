@@ -21,12 +21,13 @@ from app.agents.base import LLMNotConfiguredError
 from app.agents.tokenizer_agent import CollectItem, TokenizerAgent
 from app.api import deps
 from app.container import Container
-from app.models import VocabEntry
+from app.models import PublicUser, VocabEntry
 from app.nlp.tokenizer import VocabCandidate
 
 router = APIRouter(prefix="/api/vocab", tags=["vocab"])
 
 ContainerDep = Annotated[Container, Depends(deps.container)]
+UserDep = Annotated[PublicUser, Depends(deps.optional_current_user)]
 
 
 class ExtractRequest(BaseModel):
@@ -58,12 +59,12 @@ async def extract(req: ExtractRequest, c: ContainerDep) -> ExtractResponse:
 
 
 @router.post("/collect")
-async def collect(req: CollectRequest, c: ContainerDep) -> list[VocabEntry]:
+async def collect(req: CollectRequest, c: ContainerDep, user: UserDep) -> list[VocabEntry]:
     """把「不认识」的词入库（连同来源句，按 lemma 查重合并，ADR-004/010）。"""
     words = deps.require_words(c)
     tokenizer = deps.require_tokenizer(c)
     agent = TokenizerAgent(tokenizer, words)
-    return await agent.collect(req.items)
+    return await agent.collect(req.items, user_id=user.id)
 
 
 class ManualRequest(BaseModel):
@@ -81,7 +82,7 @@ class ManualRequest(BaseModel):
 
 
 @router.post("/manual")
-async def manual(req: ManualRequest, c: ContainerDep) -> VocabEntry:
+async def manual(req: ManualRequest, c: ContainerDep, user: UserDep) -> VocabEntry:
     """用户主动补录生词（ADR-015）：取/造来源句 → 复用 collect 入库（按 lemma 合并）。
 
     来源句优先级：自填 sentence > text 中定位 > LLM 造句 > 无来源句兜底。
@@ -113,33 +114,34 @@ async def manual(req: ManualRequest, c: ContainerDep) -> VocabEntry:
         lemma=candidate.lemma,
         context_sentences=candidate.context_sentences,
     )
-    entries = await agent.collect([item])
+    entries = await agent.collect([item], user_id=user.id)
     return entries[0]
 
 
 @router.get("")
-async def list_vocab(c: ContainerDep) -> list[VocabEntry]:
+async def list_vocab(c: ContainerDep, user: UserDep) -> list[VocabEntry]:
     """生词本全量。"""
     words = deps.require_words(c)
-    return await words.list()
+    return await words.list(user_id=user.id)
 
 
 @router.get("/due")
 async def due(
     c: ContainerDep,
+    user: UserDep,
     limit: int | None = Query(default=None, ge=1),
 ) -> list[VocabEntry]:
     """FSRS 到期复习队列（F3a 消费）。排序/过滤在 WordRepository.list_due（L1/L2）。"""
     words = deps.require_words(c)
-    return await words.list_due(limit=limit)
+    return await words.list_due(user_id=user.id, limit=limit)
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_vocab(entry_id: str, c: ContainerDep) -> Response:
+async def delete_vocab(entry_id: str, c: ContainerDep, user: UserDep) -> Response:
     """从生词本永久删除一个词条。"""
     words = deps.require_words(c)
-    entry = await words.get(entry_id)
+    entry = await words.get(entry_id, user_id=user.id)
     if entry is None:
         raise HTTPException(status_code=404, detail="生词不存在")
-    await words.delete(entry_id)
+    await words.delete(entry_id, user_id=user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

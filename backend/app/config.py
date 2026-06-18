@@ -100,6 +100,11 @@ class AppConfig(BaseSettings):
     # 存储：LocalAdapter(SQLite) 的数据库文件路径（相对 backend/ 或绝对）。
     database_url: str = "sqlite:///./data/english_coach.db"
 
+    # 本地登录 token 签名密钥。自部署建议在 backend/.env 显式设置；
+    # 未设置时使用开发默认值，重启后 token 仍可用但不适合公网暴露。
+    auth_secret: str = "english-coach-local-dev-secret"
+    auth_token_ttl_seconds: int = 60 * 60 * 24 * 14
+
     # LLM provider 连接表：provider 名 → 连接信息。
     # 嵌套环境变量写法（分隔符 __），如：
     #   ENGLISH_COACH_LLM_PROVIDERS__CLAUDE__KIND=claude

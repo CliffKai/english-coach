@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api, type MetaResponse } from './api'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { api, getAuthToken, type AuthResponse, type MetaResponse, type PublicUser } from './api'
 import PracticePanel from './panels/PracticePanel'
 import ReviewPanel from './panels/ReviewPanel'
 import SentencePanel from './panels/SentencePanel'
@@ -41,6 +41,8 @@ function storeSidebarCollapsed(collapsed: boolean) {
 }
 
 export default function App() {
+  const [authChecking, setAuthChecking] = useState(true)
+  const [user, setUser] = useState<PublicUser | null>(null)
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [tab, setTab] = useState<Tab>('today')
@@ -59,12 +61,52 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    refreshMeta()
+    const token = getAuthToken()
+    if (!token) {
+      setAuthChecking(false)
+      setConn('ok')
+      return
+    }
+    api
+      .authMe()
+      .then((u) => {
+        setUser(u)
+        return refreshMeta()
+      })
+      .catch(() => {
+        api.logout()
+        setUser(null)
+        setMeta(null)
+      })
+      .finally(() => setAuthChecking(false))
   }, [refreshMeta])
 
   useEffect(() => {
     storeSidebarCollapsed(sidebarCollapsed)
   }, [sidebarCollapsed])
+
+  function handleAuthed(resp: AuthResponse) {
+    setUser(resp.user)
+    void refreshMeta()
+  }
+
+  function logout() {
+    api.logout()
+    setUser(null)
+    setMeta(null)
+    setTab('today')
+    setConn('ok')
+  }
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
+        检查登录状态…
+      </div>
+    )
+  }
+
+  if (!user) return <AuthGate onAuthed={handleAuthed} />
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 lg:flex">
@@ -109,6 +151,7 @@ export default function App() {
           </nav>
 
           <div className="flex flex-wrap items-center gap-2 lg:mt-auto lg:flex-col lg:items-stretch">
+            <UserBadge user={user} onLogout={logout} />
             <VoiceBadge meta={meta} />
             <ConnBadge conn={conn} version={meta?.version} />
           </div>
@@ -153,6 +196,92 @@ export default function App() {
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+function AuthGate({ onAuthed }: { onAuthed: (resp: AuthResponse) => void }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErr(null)
+    try {
+      const resp =
+        mode === 'login'
+          ? await api.authLogin(username, password)
+          : await api.authRegister(username, password)
+      onAuthed(resp)
+    } catch (error) {
+      setErr((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-slate-900">
+      <form onSubmit={submit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-xl font-semibold">English Coach</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {mode === 'login' ? '登录后读取你的学习数据。' : '注册一个本地账号，用于隔离词库、错题和练习记录。'}
+        </p>
+        <label className="mt-5 block text-sm">
+          <span className="text-slate-600">用户名</span>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+            placeholder="cliff"
+          />
+        </label>
+        <label className="mt-3 block text-sm">
+          <span className="text-slate-600">密码</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+            placeholder="至少 8 位"
+          />
+        </label>
+        {err && <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</p>}
+        <button
+          type="submit"
+          disabled={busy || !username.trim() || password.length < 8}
+          className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {busy ? '处理中…' : mode === 'login' ? '登录' : '注册并登录'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === 'login' ? 'register' : 'login')
+            setErr(null)
+          }}
+          className="mt-3 w-full text-sm text-slate-500 hover:text-slate-900"
+        >
+          {mode === 'login' ? '没有账号？注册' : '已有账号？登录'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+function UserBadge({ user, onLogout }: { user: PublicUser; onLogout: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 lg:w-full">
+      <span className="truncate">账号：{user.username}</span>
+      <button type="button" onClick={onLogout} className="shrink-0 text-slate-400 hover:text-slate-900">
+        退出
+      </button>
     </div>
   )
 }

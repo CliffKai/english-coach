@@ -20,11 +20,13 @@ from app.adapters import (
     SqliteErrorRepository,
     SqliteSessionRepository,
     SqliteSettingsRepository,
+    SqliteUserRepository,
     SqliteWordRepository,
 )
 from app.adapters.llm_factory import build_default_llm
 from app.adapters.speech_factory import build_default_stt, build_default_tts
 from app.api import (
+    auth_router,
     baseline_router,
     data_router,
     practice_router,
@@ -55,6 +57,7 @@ async def lifespan(app: FastAPI):
             errors=SqliteErrorRepository(db),
             sessions=SqliteSessionRepository(db),
             settings=SqliteSettingsRepository(db),
+            users=SqliteUserRepository(db),
             pronunciation=NonePronunciationAdapter(),
             # L2 服务：spaCy 切词（模型懒加载，首次 tokenize 才载入）+ FSRS 调度。
             tokenizer=SpacyTokenizer(),
@@ -91,6 +94,7 @@ app.add_middleware(
 # L4 语音：voice（F2d 语音对话 WebSocket）。
 # L5 习惯/落地：today（今日学习聚合）/ data（导入导出）/ settings（配置向导支撑）。
 app.include_router(baseline_router)
+app.include_router(auth_router)
 app.include_router(vocab_router)
 app.include_router(review_router)
 app.include_router(practice_router)

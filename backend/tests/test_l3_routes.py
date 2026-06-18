@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from app.adapters.llm import LLMResponse
 from app.adapters.local import (
     SqliteSettingsRepository,
+    SqliteUserRepository,
     SqliteWordRepository,
 )
 from app.container import Container, set_container
@@ -52,6 +53,7 @@ def _make_container(reply: str) -> tuple[Container, Database]:
             llm=FakeLLM(reply),
             words=SqliteWordRepository(db),
             settings=SqliteSettingsRepository(db),
+            users=SqliteUserRepository(db),
             tokenizer=tokenizer,
             scheduler=FsrsScheduler(),
         ),
@@ -165,6 +167,49 @@ def test_vocab_list_and_delete_entry(client_correct: TestClient):
 
     missing = client_correct.delete(f"/api/vocab/{entry_id}")
     assert missing.status_code == 404
+
+
+def test_auth_register_login_and_vocab_isolation(client_correct: TestClient):
+    alice = client_correct.post(
+        "/api/auth/register", json={"username": "alice", "password": "password123"}
+    )
+    bob = client_correct.post(
+        "/api/auth/register", json={"username": "bob", "password": "password123"}
+    )
+    assert alice.status_code == 201
+    assert bob.status_code == 201
+
+    alice_headers = {"Authorization": f"Bearer {alice.json()['access_token']}"}
+    bob_headers = {"Authorization": f"Bearer {bob.json()['access_token']}"}
+
+    collected = client_correct.post(
+        "/api/vocab/collect",
+        headers=alice_headers,
+        json={
+            "items": [
+                {
+                    "word": "isolated",
+                    "lemma": "isolated",
+                    "context_sentences": ["Alice owns this word."],
+                }
+            ]
+        },
+    ).json()
+    assert collected[0]["user_id"] == alice.json()["user"]["id"]
+
+    assert [e["lemma"] for e in client_correct.get("/api/vocab", headers=alice_headers).json()] == [
+        "isolated"
+    ]
+    assert client_correct.get("/api/vocab", headers=bob_headers).json() == []
+
+    login = client_correct.post(
+        "/api/auth/login", json={"username": "Alice", "password": "password123"}
+    )
+    assert login.status_code == 200
+    me = client_correct.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {login.json()['access_token']}"}
+    )
+    assert me.json()["username"] == "alice"
 
 
 def test_baseline_assess_409_when_no_llm():

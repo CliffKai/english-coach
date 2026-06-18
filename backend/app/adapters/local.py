@@ -18,6 +18,7 @@ from app.adapters.repository import (
     ErrorRepository,
     SessionRepository,
     SettingsRepository,
+    UserRepository,
     WordRepository,
 )
 from app.db.connection import Database
@@ -27,6 +28,7 @@ from app.models import (
     FsrsState,
     PracticeSession,
     Settings,
+    UserAccount,
     VocabEntry,
 )
 from app.models.entities import ModelConfig, UserUnderstanding
@@ -37,6 +39,53 @@ _UNDERSTANDING_LIST = TypeAdapter(list[UserUnderstanding])
 
 def _dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None
+
+
+# ── UserAccount 行 <-> 模型 ─────────────────────────────────────────
+def _user_to_row(u: UserAccount) -> dict:
+    return {
+        "id": u.id,
+        "username": u.username,
+        "password_hash": u.password_hash,
+        "created_at": u.created_at.isoformat(),
+    }
+
+
+def _row_to_user(row: sqlite3.Row) -> UserAccount:
+    return UserAccount(
+        id=row["id"],
+        username=row["username"],
+        password_hash=row["password_hash"],
+        created_at=_dt(row["created_at"]),
+    )
+
+
+class SqliteUserRepository(UserRepository):
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def add(self, user: UserAccount) -> UserAccount:
+        row = _user_to_row(user)
+        cols = ", ".join(row)
+        placeholders = ", ".join(f":{c}" for c in row)
+        await self._db.run(
+            lambda c: c.execute(f"INSERT INTO users ({cols}) VALUES ({placeholders})", row)
+        )
+        return user
+
+    async def get(self, user_id: str) -> UserAccount | None:
+        row = await self._db.run(
+            lambda c: c.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        )
+        return _row_to_user(row) if row else None
+
+    async def get_by_username(self, username: str) -> UserAccount | None:
+        row = await self._db.run(
+            lambda c: c.execute(
+                "SELECT * FROM users WHERE username = ?", (username.lower(),)
+            ).fetchone()
+        )
+        return _row_to_user(row) if row else None
 
 
 # ── VocabEntry 行 <-> 模型 ──────────────────────────────────────────

@@ -5,6 +5,17 @@ export interface HealthResponse {
   version: string
 }
 
+export interface PublicUser {
+  id: string
+  username: string
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: string
+  user: PublicUser
+}
+
 export interface MetaResponse {
   version: string
   storage_backend: string
@@ -211,8 +222,39 @@ export interface PracticeTopicResponse {
   topic: string
 }
 
+const AUTH_TOKEN_STORAGE_KEY = 'english-coach.authToken'
+
+export function getAuthToken(): string | null {
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setAuthToken(token: string) {
+  try {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token)
+  } catch {
+    // localStorage can be unavailable in privacy-restricted browser contexts.
+  }
+}
+
+export function clearAuthToken() {
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  } catch {
+    // localStorage can be unavailable in privacy-restricted browser contexts.
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const resp = await fetch(path)
+  const resp = await fetch(path, { headers: authHeaders() })
   if (!resp.ok) throw new Error(await errText(path, resp))
   return resp.json() as Promise<T>
 }
@@ -220,7 +262,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, body: unknown, method = 'POST'): Promise<T> {
   const resp = await fetch(path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   })
   if (!resp.ok) throw new Error(await errText(path, resp))
@@ -228,8 +270,14 @@ async function postJson<T>(path: string, body: unknown, method = 'POST'): Promis
 }
 
 async function deleteEmpty(path: string): Promise<void> {
-  const resp = await fetch(path, { method: 'DELETE' })
+  const resp = await fetch(path, { method: 'DELETE', headers: authHeaders() })
   if (!resp.ok) throw new Error(await errText(path, resp))
+}
+
+async function downloadBlob(path: string): Promise<Blob> {
+  const resp = await fetch(path, { headers: authHeaders() })
+  if (!resp.ok) throw new Error(await errText(path, resp))
+  return resp.blob()
 }
 
 async function errText(path: string, resp: Response): Promise<string> {
@@ -244,6 +292,19 @@ async function errText(path: string, resp: Response): Promise<string> {
 export const api = {
   health: () => getJson<HealthResponse>('/api/health'),
   meta: () => getJson<MetaResponse>('/api/meta'),
+
+  authRegister: async (username: string, password: string) => {
+    const resp = await postJson<AuthResponse>('/api/auth/register', { username, password })
+    setAuthToken(resp.access_token)
+    return resp
+  },
+  authLogin: async (username: string, password: string) => {
+    const resp = await postJson<AuthResponse>('/api/auth/login', { username, password })
+    setAuthToken(resp.access_token)
+    return resp
+  },
+  authMe: () => getJson<PublicUser>('/api/auth/me'),
+  logout: () => clearAuthToken(),
 
   // F1
   vocabExtract: (text: string) =>
@@ -314,6 +375,8 @@ export const api = {
   // L5 导入/导出
   exportJsonUrl: '/api/export/json',
   exportAnkiUrl: '/api/export/anki',
+  exportJson: () => downloadBlob('/api/export/json'),
+  exportAnki: () => downloadBlob('/api/export/anki'),
   importJson: (bundle: unknown, replace: boolean) =>
     postJson<{
       vocab_imported: number

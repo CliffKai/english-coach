@@ -4,7 +4,7 @@
 
 A **comprehension-first** English-learning app for Chinese native speakers — built around understanding words in context instead of rote memorization.
 
-It runs entirely on your own machine, talks to whichever AI model you choose (cloud or fully local), and keeps all your data local. No account, no sign-up.
+It runs entirely on your own machine, talks to whichever AI model you choose (cloud or fully local), and keeps all your data local. Local accounts are used only to separate each learner's vocabulary, errors, and practice history.
 
 ## What it does
 
@@ -17,7 +17,7 @@ Three features that feed one another:
    - *Exam mode* (free writing / dialogue): no help while you work — errors are noted silently, and when you finish (or hand in early) you get IELTS/TOEFL-style scores plus a full error report.
 3. **Comprehension-based review** — instead of flashing a definition at you, the app shows the original sentence and asks you to explain the word *in your own words*, or weaves your words into a short passage to translate. Review timing is scheduled automatically (spaced repetition) so you revisit words right before you'd forget them.
 
-Everything you collect (vocabulary) and every mistake you make (errors) flows into one profile that personalizes all three features.
+Everything each learner collects (vocabulary) and every mistake they make (errors) flows into that learner's own profile. Model/API setup is still shared for this local app: one configured provider setup is used by all local accounts.
 
 ## Quick start (Docker — recommended)
 
@@ -29,7 +29,7 @@ docker compose up --build
 
 > **You must configure an AI model first.** The app starts without one, but every AI feature (scoring, review, dialogue, level test) will ask you to set up a model. The easiest path is one OpenAI-compatible provider — DeepSeek, Qwen, Kimi, a local Ollama, etc. See the examples in `backend/.env.example`.
 >
-> **Runs on localhost only by default.** The app has no login, and it exposes import/export and endpoints that spend your API key — so it binds to `127.0.0.1` only. If you really need to reach it from another device, start with `FRONTEND_BIND=0.0.0.0` and put your own authentication in front of it.
+> **Runs on localhost only by default.** The app now has local login, but model/API settings are shared and endpoints can spend your configured API key — so it still binds to `127.0.0.1` only. If you really need to reach it from another device, start with `FRONTEND_BIND=0.0.0.0` and put proper network authentication in front of it.
 
 ### Fully local, no cloud key
 
@@ -76,7 +76,7 @@ npm run dev      # → http://localhost:5173
 
 ## First run: the setup wizard
 
-A banner on the home page guides you to the **Settings** page:
+Register or log in first. A banner on the home page then guides you to the **Settings** page:
 
 1. **Add a model** — in `backend/.env`, fill in your provider's connection info (base URL / API key), then restart the backend. Your keys stay in `.env` and are never stored in the database.
 2. **Assign a model to each task** — in Settings, choose a provider + model for scoring, reasoning, conversation, and tokenizing, then click **Test connection** to confirm it works.
@@ -90,8 +90,8 @@ Speaking practice and spoken dialogue need a speech-to-text and text-to-speech s
 
 ## Import / export (Settings page)
 
-- **Full JSON backup** — exports everything (vocabulary, errors, sessions, settings) so you can move to a new machine and import it back. Import can **merge** (keep your existing review progress, just add new sentences) or **replace** (wipe and reimport).
-- **Anki export** — exports your vocabulary as an Anki-importable CSV. The card front is the word; the back is the source sentences plus your own past explanations — **no canned definition**, true to how the app works. In Anki, choose "File → Import" with comma-separated fields and "allow HTML/newlines in fields".
+- **Full JSON backup** — exports the current logged-in learner's vocabulary, errors, sessions, plus shared settings, so you can move to a new machine and import it back. Import can **merge** (keep your existing review progress, just add new sentences) or **replace** (wipe and reimport for the current account).
+- **Anki export** — exports the current logged-in learner's vocabulary as an Anki-importable CSV. The card front is the word; the back is the source sentences plus your own past explanations — **no canned definition**, true to how the app works. In Anki, choose "File → Import" with comma-separated fields and "allow HTML/newlines in fields".
 
 ## Privacy
 

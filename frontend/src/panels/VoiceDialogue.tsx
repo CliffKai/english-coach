@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ScoreResponse } from '../api'
+import { getAuthToken, type ScoreResponse } from '../api'
 import { useRecorder } from '../useRecorder'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
 import PracticeTopicInput from './PracticeTopicInput'
@@ -13,7 +13,9 @@ type Line = { who: 'you' | 'examiner'; text: string }
 
 function wsUrl(): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${location.host}/ws/practice/dialogue`
+  const token = getAuthToken()
+  const query = token ? `?token=${encodeURIComponent(token)}` : ''
+  return `${proto}://${location.host}/ws/practice/dialogue${query}`
 }
 
 export default function VoiceDialogue() {
