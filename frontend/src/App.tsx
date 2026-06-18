@@ -13,6 +13,8 @@ import VocabPanel from './panels/VocabPanel'
 type Conn = 'checking' | 'ok' | 'down'
 type Tab = 'today' | 'vocab' | 'sentence' | 'practice' | 'review' | 'settings'
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'english-coach.sidebarCollapsed'
+
 const TABS: { key: Tab; title: string; desc: string }[] = [
   { key: 'today', title: '今日', desc: '把待复习生词、待巩固错题、推荐话题串成今天的学习清单' },
   { key: 'vocab', title: '生词收集', desc: '粘贴英文 → 切词 → 逐词问询 → 不认识者入库' },
@@ -22,10 +24,27 @@ const TABS: { key: Tab; title: string; desc: string }[] = [
   { key: 'settings', title: '设置', desc: '配置模型、水平基线测试、数据导入导出' },
 ]
 
+function readInitialSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function storeSidebarCollapsed(collapsed: boolean) {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? 'true' : 'false')
+  } catch {
+    // localStorage can be unavailable in privacy-restricted browser contexts.
+  }
+}
+
 export default function App() {
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [tab, setTab] = useState<Tab>('today')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readInitialSidebarCollapsed)
   const [vocabSeed, setVocabSeed] = useState<{ text: string; key: number } | null>(null)
   const activeTab = TABS.find((t) => t.key === tab)!
 
@@ -43,13 +62,30 @@ export default function App() {
     refreshMeta()
   }, [refreshMeta])
 
+  useEffect(() => {
+    storeSidebarCollapsed(sidebarCollapsed)
+  }, [sidebarCollapsed])
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 lg:flex">
-      <aside className="border-b border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r">
+      <aside
+        className={`border-b border-slate-200 bg-white ${sidebarCollapsed ? 'lg:hidden' : 'lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r'}`}
+      >
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-6 py-5 lg:h-full lg:max-w-none lg:px-5 lg:py-6">
-          <div>
-            <h1 className="text-xl font-semibold">English Coach</h1>
-            <p className="text-sm text-slate-500">理解式英语学习 Agent</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-semibold">English Coach</h1>
+              <p className="text-sm text-slate-500">理解式英语学习 Agent</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(true)}
+              aria-label="收起左侧导航"
+              title="收起左侧导航"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-lg leading-none text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 lg:inline-flex"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
           </div>
 
           <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0">
@@ -79,7 +115,18 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-8">
+      <main className={`mx-auto w-full px-6 py-8 lg:px-8 ${sidebarCollapsed ? 'max-w-6xl' : 'max-w-5xl'}`}>
+        {sidebarCollapsed && (
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label="展开左侧导航"
+            title="展开左侧导航"
+            className="fixed left-4 top-6 z-20 hidden h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 lg:inline-flex"
+          >
+            <span aria-hidden="true">›</span>
+          </button>
+        )}
         <p className="mb-5 text-sm text-slate-600">{activeTab.desc}</p>
         {conn === 'down' ? (
           <p className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700">
