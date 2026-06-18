@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api, type VocabCandidate, type VocabEntry } from '../api'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
 
@@ -26,6 +26,18 @@ export default function VocabPanel({ seedText, seedKey }: { seedText?: string; s
   const [vocabBusy, setVocabBusy] = useState(false)
   const [vocabErr, setVocabErr] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [vocabQuery, setVocabQuery] = useState('')
+
+  const normalizedVocabQuery = vocabQuery.trim().toLowerCase()
+  const filteredVocab = useMemo(() => {
+    if (!vocab) return null
+    if (!normalizedVocabQuery) return vocab
+
+    return vocab.filter((entry) => {
+      const searchable = [entry.word, entry.lemma, entry.status, ...entry.context_sentences]
+      return searchable.some((value) => value.toLowerCase().includes(normalizedVocabQuery))
+    })
+  }, [vocab, normalizedVocabQuery])
 
   async function loadVocab(opts: { quiet?: boolean } = {}) {
     if (!opts.quiet) setVocabBusy(true)
@@ -280,18 +292,37 @@ export default function VocabPanel({ seedText, seedKey }: { seedText?: string; s
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-medium">我的词库</h2>
-            <p className="mt-1 text-sm text-slate-500">当前共 {vocab?.length ?? 0} 个词。</p>
+            <p className="mt-1 text-sm text-slate-500">
+              当前共 {vocab?.length ?? 0} 个词
+              {normalizedVocabQuery && filteredVocab ? '，匹配 ' + filteredVocab.length + ' 个' : ''}。
+            </p>
           </div>
           <Button variant="ghost" onClick={() => void loadVocab()} disabled={vocabBusy}>
             刷新
           </Button>
         </div>
 
+        {vocab && vocab.length > 0 && (
+          <div className="mb-3">
+            <label htmlFor="vocab-search" className="mb-1 block text-sm font-medium text-slate-700">
+              搜索词库
+            </label>
+            <input
+              id="vocab-search"
+              value={vocabQuery}
+              onChange={(e) => setVocabQuery(e.target.value)}
+              placeholder="输入单词、lemma 或例句片段"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+            />
+          </div>
+        )}
+
         {vocabBusy && !vocab ? (
           <Spinner label="加载词库…" />
-        ) : vocab && vocab.length > 0 ? (
+        ) : vocab && vocab.length > 0 && filteredVocab ? (
+          filteredVocab.length > 0 ? (
           <ul className="divide-y divide-slate-100 rounded-md border border-slate-100">
-            {vocab.map((entry) => (
+            {filteredVocab.map((entry) => (
               <li key={entry.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -312,16 +343,24 @@ export default function VocabPanel({ seedText, seedKey }: { seedText?: string; s
                     </p>
                   )}
                 </div>
-                <Button
-                  variant="danger"
-                  onClick={() => void deleteEntry(entry)}
-                  disabled={deletingId === entry.id}
-                >
-                  {deletingId === entry.id ? '删除中…' : '删除'}
-                </Button>
+                <div className="shrink-0 self-start sm:pl-4">
+                  <Button
+                    variant="danger"
+                    onClick={() => void deleteEntry(entry)}
+                    disabled={deletingId === entry.id}
+                    className="w-24 whitespace-nowrap"
+                  >
+                    {deletingId === entry.id ? '删除中…' : '删除'}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
+          ) : (
+            <p className="rounded-md border border-slate-100 px-3 py-3 text-sm text-slate-500">
+              没有匹配「{vocabQuery.trim()}」的词。
+            </p>
+          )
         ) : (
           <p className="text-sm text-slate-500">词库里还没有生词。</p>
         )}
