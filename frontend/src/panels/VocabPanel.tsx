@@ -201,25 +201,27 @@ export default function VocabPanel({ seedText, seedKey }: { seedText?: string; s
               {candidates.map((c) => (
                 <li
                   key={c.lemma}
-                  className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2"
+                  className="flex items-center gap-3 rounded-md border border-slate-100 px-3 py-2"
                 >
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <span className="font-medium">{c.word}</span>
                     <span className="ml-2 text-xs text-slate-400">zipf {c.zipf.toFixed(1)}</span>
                     {c.context_sentences[0] && (
                       <p className="mt-0.5 text-xs text-slate-500">{c.context_sentences[0]}</p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-2">
                     <Button
                       variant={decisions[c.lemma] === 'unknown' ? 'danger' : 'ghost'}
                       onClick={() => setDecisions((d) => ({ ...d, [c.lemma]: 'unknown' }))}
+                      className="whitespace-nowrap"
                     >
                       不认识
                     </Button>
                     <Button
                       variant={decisions[c.lemma] === 'known' ? 'primary' : 'ghost'}
                       onClick={() => setDecisions((d) => ({ ...d, [c.lemma]: 'known' }))}
+                      className="whitespace-nowrap"
                     >
                       认识
                     </Button>

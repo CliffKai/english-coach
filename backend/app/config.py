@@ -79,7 +79,11 @@ class AppConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="ENGLISH_COACH_",
-        env_file=".env",
+        # Always read backend/.env regardless of the process working directory.
+        # Local dev sometimes starts uvicorn from the repository root; a relative
+        # ".env" would then miss backend/.env and make configured providers
+        # disappear at runtime.
+        env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         extra="ignore",

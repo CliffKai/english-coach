@@ -12,11 +12,11 @@ import { Button, Card, ErrorNote, Estimated, Spinner } from '../ui'
 //  - 设置：改 model_config / 打分标准 / 目标分；数据导入/导出（JSON 全量 + Anki CSV）。
 // 密钥不在前端管（在 .env，ADR-006）：向导只选 provider 名 + model，连接凭证后端按名查。
 
-const TASKS: { key: 'scoring' | 'reasoning' | 'tokenize' | 'conversation'; label: string; hint: string }[] = [
-  { key: 'scoring', label: '评分 (scoring)', hint: '打分/分级，最强模型' },
-  { key: 'reasoning', label: '引导/复盘 (reasoning)', hint: '中档' },
-  { key: 'conversation', label: '对话 (conversation)', hint: '高频，性价比' },
-  { key: 'tokenize', label: '切词判断 (tokenize)', hint: '本地/轻量' },
+const TASKS: { key: 'scoring' | 'reasoning' | 'tokenize' | 'conversation'; label: string }[] = [
+  { key: 'scoring', label: '评分 (scoring)' },
+  { key: 'reasoning', label: '引导/复盘 (reasoning)' },
+  { key: 'conversation', label: '对话 (conversation)' },
+  { key: 'tokenize', label: '切词判断 (tokenize)' },
 ]
 
 export default function SettingsPanel({ onSaved }: { onSaved?: () => void }) {
@@ -189,7 +189,6 @@ function ModelConfigCard({
             <div key={t.key} className="rounded-md border border-slate-100 p-3">
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-sm font-medium">{t.label}</span>
-                <span className="text-xs text-slate-400">{t.hint}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select
