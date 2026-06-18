@@ -6,7 +6,7 @@ import { Button, Card, ErrorNote, Spinner } from '../ui'
 
 type Decision = 'unknown' | 'known' | undefined
 
-export default function VocabPanel() {
+export default function VocabPanel({ seedText, seedKey }: { seedText?: string; seedKey?: number }) {
   const [text, setText] = useState('')
   const [candidates, setCandidates] = useState<VocabCandidate[] | null>(null)
   const [decisions, setDecisions] = useState<Record<string, Decision>>({})
@@ -42,6 +42,15 @@ export default function VocabPanel() {
   useEffect(() => {
     void loadVocab()
   }, [])
+
+  useEffect(() => {
+    if (!seedText?.trim()) return
+    setText(seedText)
+    setCandidates(null)
+    setDecisions({})
+    setSavedCount(null)
+    setErr(null)
+  }, [seedText, seedKey])
 
   async function addFromText() {
     if (!fromTextWord.trim()) return

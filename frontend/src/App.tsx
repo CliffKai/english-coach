@@ -2,19 +2,21 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, type MetaResponse } from './api'
 import PracticePanel from './panels/PracticePanel'
 import ReviewPanel from './panels/ReviewPanel'
+import SentencePanel from './panels/SentencePanel'
 import SettingsPanel from './panels/SettingsPanel'
 import TodayPanel from './panels/TodayPanel'
 import VocabPanel from './panels/VocabPanel'
 
-// L5 起：「今日」聚合首页串起平行三大功能 + 配置向导/设置。
-// 三大功能：F1 生词、F2 话题练习（含语音对话）、F3 背词。
+// L5 起：「今日」聚合首页串起核心学习任务 + 配置向导/设置。
+// 核心功能：F1 生词、句子精读、F2 话题练习（含语音对话）、F3 背词。
 
 type Conn = 'checking' | 'ok' | 'down'
-type Tab = 'today' | 'vocab' | 'practice' | 'review' | 'settings'
+type Tab = 'today' | 'vocab' | 'sentence' | 'practice' | 'review' | 'settings'
 
 const TABS: { key: Tab; title: string; desc: string }[] = [
   { key: 'today', title: '今日', desc: '把待复习生词、待巩固错题、推荐话题串成今天的学习清单' },
   { key: 'vocab', title: '生词收集', desc: '粘贴英文 → 切词 → 逐词问询 → 不认识者入库' },
+  { key: 'sentence', title: '句子精读', desc: '输入一句英文 → 翻译、拆结构、讲语法/词汇/表达' },
   { key: 'practice', title: '话题练习', desc: '引导写/说（即时纠错）· 自由写作/语音对话（打分）' },
   { key: 'review', title: '理解式背单词', desc: '来源句复述 + 语境造句翻译，FSRS 调度' },
   { key: 'settings', title: '设置', desc: '配置模型、水平基线测试、数据导入导出' },
@@ -24,6 +26,7 @@ export default function App() {
   const [conn, setConn] = useState<Conn>('checking')
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [tab, setTab] = useState<Tab>('today')
+  const [vocabSeed, setVocabSeed] = useState<{ text: string; key: number } | null>(null)
   const activeTab = TABS.find((t) => t.key === tab)!
 
   const refreshMeta = useCallback(() => {
@@ -88,7 +91,15 @@ export default function App() {
               <WizardBanner meta={meta} onGoto={() => setTab('settings')} />
             )}
             {tab === 'today' && <TodayPanel onGoto={setTab} />}
-            {tab === 'vocab' && <VocabPanel />}
+            {tab === 'vocab' && <VocabPanel seedText={vocabSeed?.text} seedKey={vocabSeed?.key} />}
+            {tab === 'sentence' && (
+              <SentencePanel
+                onSendToVocab={(text) => {
+                  setVocabSeed({ text, key: Date.now() })
+                  setTab('vocab')
+                }}
+              />
+            )}
             {tab === 'practice' && <PracticePanel />}
             {tab === 'review' && <ReviewPanel />}
             {tab === 'settings' && <SettingsPanel onSaved={refreshMeta} />}

@@ -24,11 +24,12 @@ def test_app_boots_and_health_ok():
 def test_meta_reports_feature_flags():
     client = TestClient(app)
     data = client.get("/api/meta").json()
-    # L3 起 F1 / F3a / F2c 已接（话题练习 2a/2b/2d 待 L4）。
+    # L3 起 F1 / F3a / F2c 已接；L4/L5 后继续增加功能旗标。
     # （具体取值随层级推进，权威断言见 test_l3_routes::test_meta_reports_l3_features_on。）
     assert data["features"]["topic_practice"] is True
     assert set(data["features"]) == {
         "vocab_collection",
+        "sentence_analysis",
         "topic_practice",
         "comprehension_review",
     }

@@ -29,6 +29,7 @@ from app.api import (
     data_router,
     practice_router,
     review_router,
+    sentence_router,
     settings_router,
     today_router,
     vocab_router,
@@ -86,12 +87,14 @@ app.add_middleware(
 )
 
 # L3 核心闭环路由：baseline → vocab(F1) → review(F3a/F3b) → practice(F2c/F2d/F2a/2b + 错题本)。
+# 句子精读：sentence（翻译 + 语法/用法讲解，不落库）。
 # L4 语音：voice（F2d 语音对话 WebSocket）。
 # L5 习惯/落地：today（今日学习聚合）/ data（导入导出）/ settings（配置向导支撑）。
 app.include_router(baseline_router)
 app.include_router(vocab_router)
 app.include_router(review_router)
 app.include_router(practice_router)
+app.include_router(sentence_router)
 app.include_router(voice_router)
 app.include_router(today_router)
 app.include_router(data_router)
@@ -139,6 +142,7 @@ async def meta() -> dict:
         "features": {
             # 随层级推进置 true。
             "vocab_collection": True,  # F1，L3 已接（切词+逐词问询+入库）
+            "sentence_analysis": True,  # 句子精读：翻译 + 语法/用法讲解（即时，不落库）
             "topic_practice": True,  # F2，L3 接 2c；L4 接 2a/2b（引导）+ 2d（对话打分）
             "comprehension_review": True,  # F3，L3 接 3a；L4 接 3b（语境造句背）
         },

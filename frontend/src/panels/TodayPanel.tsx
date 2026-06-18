@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, type TodayResponse } from '../api'
 import { Button, Card, ErrorNote, Spinner } from '../ui'
 
-// L5「今日学习」聚合首页：把平行三大功能串成「今天该干什么」——
+// L5「今日学习」聚合首页：把日常复习/练习任务串成「今天该干什么」——
 // 待复习生词(FSRS) + 待巩固错题(resolved=False) + 推荐一个话题。
 // 只读聚合（后端 /api/today 不调 LLM）；上游空则各区显示「无待办」而非报错。
 

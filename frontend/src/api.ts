@@ -12,6 +12,7 @@ export interface MetaResponse {
   voice: { stt: boolean; tts: boolean }
   features: {
     vocab_collection: boolean
+    sentence_analysis: boolean
     topic_practice: boolean
     comprehension_review: boolean
   }
@@ -97,6 +98,36 @@ export interface VocabEntry {
   context_sentences: string[]
   status: string
   fsrs_state: { review_count: number; due: string | null }
+}
+
+// ── 句子精读 ────────────────────────────────────────────────
+export interface LearningPoint {
+  title: string
+  explanation: string
+  example: string
+}
+export interface LexicalNote {
+  term: string
+  meaning: string
+  note: string
+}
+export interface RewriteOption {
+  style: string
+  text: string
+}
+export interface SentenceAnalysisResponse {
+  original: string
+  translation_zh: string
+  literal_translation: string
+  structure: string
+  grammar_points: LearningPoint[]
+  vocabulary_notes: LexicalNote[]
+  phrase_notes: LexicalNote[]
+  common_pitfalls: string[]
+  rewrites: RewriteOption[]
+  takeaways: string[]
+  exercise: string
+  estimated: boolean
 }
 
 // ── F3a/F3b 背词 ────────────────────────────────────────────
@@ -225,6 +256,10 @@ export const api = {
   vocabList: () => getJson<VocabEntry[]>('/api/vocab'),
   vocabDelete: (entry_id: string) =>
     deleteEmpty(`/api/vocab/${encodeURIComponent(entry_id)}`),
+
+  // 句子精读
+  sentenceAnalyze: (sentence: string) =>
+    postJson<SentenceAnalysisResponse>('/api/sentence/analyze', { sentence }),
 
   // F3a
   reviewNext: () => getJson<ReviewCard | null>('/api/review/next'),

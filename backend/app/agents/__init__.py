@@ -1,4 +1,4 @@
-"""Agent 编排层（docs/02 五个 Agent）。
+"""Agent 编排层（docs/02）。
 
 Agent 是「功能逻辑」的归属地：编排 L1 适配器（LLM/存储）+ L2 服务（切词/调度），
 把确定性预处理与 LLM 判断粘合成一个功能。业务路由（app.api）只调用 Agent，不直接
@@ -12,6 +12,7 @@ L3 落地五个（按 07 严格顺序）：
 - ErrorAnalysisAgent  F2 收尾（reasoning 任务，buffer → 错题本 + 模式识别复盘）—— 紧跟 Examiner
 - TutorAgent          F2a/2b 引导写/说（reasoning 任务，练习模式即时纠错 + 脚手架）—— L4
 - TopicSuggestionAgent F2 练习前可选话题生成（conversation 任务，不落库）
+- SentenceAnalysisAgent 句子精读（reasoning 任务，翻译 + 语法/用法讲解，不落库）
 """
 
 from app.agents.base import (
@@ -33,6 +34,13 @@ from app.agents.memory_word import (
     MemoryWordAgent,
     Passage,
     WordCheck,
+)
+from app.agents.sentence_analysis import (
+    LearningPoint,
+    LexicalNote,
+    RewriteOption,
+    SentenceAnalysis,
+    SentenceAnalysisAgent,
 )
 from app.agents.tokenizer_agent import CollectItem, TokenizerAgent
 from app.agents.topic_suggestion import SuggestedTopic, TopicSuggestionAgent
@@ -62,4 +70,9 @@ __all__ = [
     "Correction",
     "TopicSuggestionAgent",
     "SuggestedTopic",
+    "SentenceAnalysisAgent",
+    "SentenceAnalysis",
+    "LearningPoint",
+    "LexicalNote",
+    "RewriteOption",
 ]
