@@ -46,30 +46,40 @@ docker compose --profile ollama up --build
 <details>
 <summary>后端 + 前端启动步骤</summary>
 
-**后端**（Python 3.11，用 conda）：
+**推荐安装方式**（在仓库根目录执行，用 conda）：
 
 ```bash
-conda create -n english-coach python=3.11
-cd backend
-conda run -n english-coach python -m pip install -e .
-conda run -n english-coach python -m spacy download en_core_web_sm
-cp .env.example .env                         # 填入你的模型连接信息
-conda run -n english-coach uvicorn app.main:app --reload
+conda env create -f environment.yml
+conda run -n english-coach npm --prefix frontend ci
+cp backend/.env.example backend/.env          # 填入你的模型连接信息
+```
+
+如果环境已经存在：
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+这会安装 Python 3.11、Node.js、后端包及开发/测试依赖，以及 spaCy 英文模型。
+
+**后端**：
+
+```bash
+conda run -n english-coach uvicorn --app-dir backend app.main:app --reload
 # → http://127.0.0.1:8000
 ```
 
 如需纯本地语音（离线语音转写 / 合成），再装可选的语音组件 —— 如果你用云端或 OpenAI 兼容的音频服务则无需：
 
 ```bash
-conda run -n english-coach python -m pip install -e ".[voice]"
+conda run -n english-coach python -m pip install -e "./backend[voice]"
 ```
 
 **前端**：
 
 ```bash
-cd frontend
-npm install
-npm run dev      # → http://localhost:5173
+conda run -n english-coach npm --prefix frontend run dev
+# → http://localhost:5173
 ```
 
 </details>

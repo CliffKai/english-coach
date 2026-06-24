@@ -1,0 +1,18 @@
+# Conda environment for local development.
+#
+# Create from the repository root:
+#   conda env create -f environment.yml
+#
+# Update an existing environment:
+#   conda env update -f environment.yml --prune
+name: english-coach
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip>=24
+  # Provides the Node/npm runtime used by the Vite frontend.
+  # Frontend packages are still installed from frontend/package-lock.json with npm ci.
+  - nodejs>=20
+  - pip:
+      - -r requirements.txt

@@ -1,0 +1,14 @@
+# Python/backend dependencies for GitHub-style one-command setup.
+#
+# From the repository root, either install directly:
+#   python -m pip install -r requirements.txt
+#
+# or let Conda consume this file through environment.yml:
+#   conda env create -f environment.yml
+
+# Install the FastAPI backend package plus development/test tools declared in backend/pyproject.toml.
+-e ./backend[dev]
+
+# spaCy English model used by app.nlp.tokenizer.SpacyTokenizer.
+# Keeping it here avoids a separate `python -m spacy download en_core_web_sm` step.
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

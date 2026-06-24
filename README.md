@@ -46,30 +46,40 @@ Your data (vocabulary, errors, sessions) lives in the `backend-data` volume and 
 <details>
 <summary>Backend + frontend setup</summary>
 
-**Backend** (Python 3.11, using conda):
+**Recommended setup** (from the repository root, using conda):
 
 ```bash
-conda create -n english-coach python=3.11
-cd backend
-conda run -n english-coach python -m pip install -e .
-conda run -n english-coach python -m spacy download en_core_web_sm
-cp .env.example .env                         # add your model connection info
-conda run -n english-coach uvicorn app.main:app --reload
+conda env create -f environment.yml
+conda run -n english-coach npm --prefix frontend ci
+cp backend/.env.example backend/.env          # add your model connection info
+```
+
+If the environment already exists:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+This installs Python 3.11, Node.js, the backend package with dev/test dependencies, and the spaCy English model.
+
+**Backend**:
+
+```bash
+conda run -n english-coach uvicorn --app-dir backend app.main:app --reload
 # → http://127.0.0.1:8000
 ```
 
 For fully local voice (offline speech-to-text / text-to-speech), also install the optional voice extras — not needed if you use a cloud or OpenAI-compatible audio service:
 
 ```bash
-conda run -n english-coach python -m pip install -e ".[voice]"
+conda run -n english-coach python -m pip install -e "./backend[voice]"
 ```
 
 **Frontend**:
 
 ```bash
-cd frontend
-npm install
-npm run dev      # → http://localhost:5173
+conda run -n english-coach npm --prefix frontend run dev
+# → http://localhost:5173
 ```
 
 </details>
